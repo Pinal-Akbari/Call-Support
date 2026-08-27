@@ -163,11 +163,39 @@ class RootTechApiService
      */
     public function createMapping(array $data): array
     {
+        // Auto-fill mask_did from config if not provided
+        if (empty($data['mask_did'])) {
+            $data['mask_did'] = config('roottech.mask_did', '912612385555');
+        }
+
         $response = Http::withToken($this->token)
             ->asJson()
             ->post("{$this->baseUrl}?r=mapping", $data);
 
         return $response->json() ?? ['success' => false];
+    }
+
+    /**
+     * Helper to easily mask a live booking in 1 step
+     */
+    public function maskBooking(
+        string $bookingId,
+        string $customerPhone,
+        string $maidPhone,
+        ?string $customerId = null,
+        ?string $maidId = null,
+        ?string $validUntil = null
+    ): array {
+        return $this->createMapping([
+            'booking_id'      => $bookingId,
+            'customer_id'     => $customerId ?? ('CUST_' . preg_replace('/\D/', '', $customerPhone)),
+            'customer_number' => $customerPhone,
+            'maid_id'         => $maidId ?? ('MAID_' . preg_replace('/\D/', '', $maidPhone)),
+            'maid_number'     => $maidPhone,
+            'mask_did'        => config('roottech.mask_did', '912612385555'),
+            'valid_from'      => date('Y-m-d H:i:s'),
+            'valid_until'     => $validUntil ?? date('Y-m-d H:i:s', strtotime('+1 year')),
+        ]);
     }
 
     /**
@@ -180,6 +208,14 @@ class RootTechApiService
             ->post("{$this->baseUrl}?r=mapping/deactivate", $data);
 
         return $response->json() ?? ['success' => false];
+    }
+
+    /**
+     * Helper to unmask / deactivate a booking directly by ID
+     */
+    public function unmaskBooking(string $bookingId): array
+    {
+        return $this->deactivateMapping(['booking_id' => $bookingId]);
     }
 
     /**

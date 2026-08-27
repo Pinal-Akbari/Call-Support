@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const themeToggleBtn  = document.getElementById('themeToggleBtn');
   const themeToggleText = document.getElementById('themeToggleText');
   const savedTheme      = localStorage.getItem('theme');
-  const isDarkInitial   = savedTheme === 'dark' || (!savedTheme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const isDarkInitial   = savedTheme === 'dark'; // Light mode is default unless savedTheme is 'dark'
 
   if (isDarkInitial) {
     document.body.classList.add('dark');
@@ -323,8 +323,21 @@ document.addEventListener('DOMContentLoaded', () => {
     mRecSearch.addEventListener('input', filterRecordingsLocally);
   }
 
-  // ─── INITIAL DASHBOARD LOAD ────────────────────────────────────────────────
-  refreshDashboardOverview();
+  // ─── INITIAL DASHBOARD LOAD & URL ROUTING ─────────────────────────────────
+  const initialHash = window.location.hash;
+  if (initialHash) {
+    const initialMod = getModuleIdFromSlug(initialHash);
+    switchModule(initialMod, false);
+  } else {
+    refreshDashboardOverview();
+  }
+
+  // Handle Browser Back / Forward buttons
+  window.addEventListener('popstate', () => {
+    const activeMod = getModuleIdFromSlug(window.location.hash);
+    switchModule(activeMod, false);
+  });
+
   startAgentLivePoll();
 });
 
@@ -344,35 +357,65 @@ async function apiPost(action, body = {}) {
   });
 }
 
-// ─── MODULE SWITCHER ──────────────────────────────────────────────────────────
-function switchModule(moduleId) {
+// ─── URL SLUG HELPERS ────────────────────────────────────────────────────────
+function getSlugFromModuleId(moduleId) {
+  return moduleId ? moduleId.replace(/^module-/, '') : 'dashboard';
+}
+
+function getModuleIdFromSlug(slug) {
+  if (!slug) return 'module-dashboard';
+  slug = slug.replace(/^#/, '').toLowerCase().trim();
+  const valid = ['dashboard', 'call', 'agents', 'mapping', 'recordings', 'reports'];
+  if (valid.includes(slug)) {
+    return 'module-' + slug;
+  }
+  return 'module-dashboard';
+}
+
+// ─── MODULE SWITCHER & URL ROUTER ───────────────────────────────────────────
+function switchModule(moduleId, updateUrl = true) {
+  const targetId = moduleId.startsWith('module-') ? moduleId : ('module-' + moduleId);
+  const slug = getSlugFromModuleId(targetId);
+
   document.querySelectorAll('.menu-item').forEach(item =>
-    item.classList.toggle('active', item.getAttribute('data-module') === moduleId)
+    item.classList.toggle('active', item.getAttribute('data-module') === targetId)
   );
   document.querySelectorAll('.module-section').forEach(sec =>
-    sec.classList.toggle('active', sec.id === moduleId)
+    sec.classList.toggle('active', sec.id === targetId)
   );
 
   const titles = {
     'module-dashboard':  { t: 'Dashboard Overview',                  s: 'Live Telephony status and recent call activity' },
-    'module-call':       { t: 'Click-to-Call Services',              s: 'Initiate outbound masked calls to Customers or Maids' },
+    'module-call':       { t: 'Click-to-Call Services',              s: 'Initiate outbound masked calls to Customers or Maids with Universal BSNL DID' },
     'module-agents':     { t: 'Agents & Extension Directory',        s: 'Manage support agent SIP extensions and active status' },
-    'module-mapping':    { t: 'DID Number Masking',                  s: 'Configure BSNL DID number masking for active bookings' },
+    'module-mapping':    { t: 'Universal DID Masking',               s: 'Configure Universal BSNL DID number masking for all Customers & Maids' },
     'module-recordings': { t: 'Call Recordings & Instant Search',    s: 'Search call history and listen to recorded audio' },
     'module-reports':    { t: 'API Reports & Audit Logs',            s: 'Telephony HTTP telemetry, Asterisk PBX logs, and payload inspection' },
   };
 
-  if (titles[moduleId]) {
+  if (titles[targetId]) {
     const el = document.getElementById('moduleTitle');
     const sl = document.getElementById('moduleSubtitle');
-    if (el) el.textContent  = titles[moduleId].t;
-    if (sl) sl.textContent  = titles[moduleId].s;
+    if (el) el.textContent  = titles[targetId].t;
+    if (sl) sl.textContent  = titles[targetId].s;
   }
 
-  if (moduleId === 'module-dashboard')        refreshDashboardOverview();
-  else if (moduleId === 'module-agents')     loadAgentsModule();
-  else if (moduleId === 'module-recordings') loadRecordingsModule();
-  else if (moduleId === 'module-reports')    loadReportsModule(1);
+  // Update browser URL hash
+  if (updateUrl) {
+    const targetHash = '#' + slug;
+    if (window.location.hash !== targetHash) {
+      if (history.pushState) {
+        history.pushState(null, '', targetHash);
+      } else {
+        window.location.hash = targetHash;
+      }
+    }
+  }
+
+  if (targetId === 'module-dashboard')        refreshDashboardOverview();
+  else if (targetId === 'module-agents')     loadAgentsModule();
+  else if (targetId === 'module-recordings') loadRecordingsModule();
+  else if (targetId === 'module-reports')    loadReportsModule(1);
 }
 
 // ─── DASHBOARD OVERVIEW ───────────────────────────────────────────────────────
@@ -461,6 +504,22 @@ async function triggerCallTarget(target) {
   const pulse      = document.getElementById('callLivePulse');
   const btnCust    = document.getElementById('btnCallCustomer');
   const btnMaid    = document.getElementById('btnCallMaid');
+
+  // Toggle active button state
+  if (btnCust && btnMaid) {
+    if (target === 'customer') {
+      btnCust.classList.remove('btn-secondary');
+      btnCust.classList.add('btn-primary', 'active');
+      btnMaid.classList.remove('btn-primary', 'active');
+      btnMaid.classList.add('btn-secondary');
+    } else {
+      btnMaid.classList.remove('btn-secondary');
+      btnMaid.classList.add('btn-primary', 'active');
+      btnCust.classList.remove('btn-primary', 'active');
+      btnCust.classList.add('btn-secondary');
+    }
+  }
+
   const btn        = target === 'customer' ? btnCust : btnMaid;
   const origBtn    = btn ? btn.innerHTML : '';
 

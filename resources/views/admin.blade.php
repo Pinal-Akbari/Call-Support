@@ -1,30 +1,8 @@
-<?php
-session_start();
-$apiToken = '11af5c25470d1306970a9175df8a1213da7435960305169f';
-$maskDid = '912612385555';
-$baseUrl = 'http://117.217.126.149:880/roottech/index.php';
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RootTech Telephony Admin Console</title>
-  <meta name="description" content="Telephony Admin Dashboard & Multi-API Manager">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css">
-  <script>
-    (function() {
-      const saved = localStorage.getItem('theme');
-      if (saved === 'dark') {
-        document.documentElement.classList.add('dark');
-        document.addEventListener('DOMContentLoaded', () => document.body.classList.add('dark'));
-      }
-    })();
-  </script>
-</head>
-<body>
+@extends('layouts.app')
 
+@section('title', 'RootTech Telephony Admin Portal')
+
+@section('content')
 <div class="app-wrapper">
   
   <!-- LEFT SIDEBAR NAVIGATION MENU -->
@@ -93,12 +71,12 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
         </div>
 
         <div style="display: flex; gap: 8px; margin-top: 8px;">
-          <a href="dashboard.php" class="btn btn-secondary" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 10px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;">
+          <a href="{{ route('dashboard') }}" class="btn btn-secondary" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 10px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;">
             <i class="fa-solid fa-headset"></i>
             <span>Agent Portal</span>
           </a>
 
-          <a href="logout.php" class="btn btn-danger" style="display:flex; align-items:center; justify-content:center; padding:7px 12px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;" title="Sign Out">
+          <a href="{{ route('logout') }}" class="btn btn-danger" style="display:flex; align-items:center; justify-content:center; padding:7px 12px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;" title="Sign Out">
             <i class="fa-solid fa-right-from-bracket"></i>
           </a>
         </div>
@@ -124,7 +102,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
         </div>
 
         <!-- Switch to Agent Console Button -->
-        <a href="dashboard.php" class="btn btn-secondary btn-sm" style="display:flex; align-items:center; gap:6px; text-decoration:none;">
+        <a href="{{ route('dashboard') }}" class="btn btn-secondary btn-sm" style="display:flex; align-items:center; gap:6px; text-decoration:none;">
           <i class="fa-solid fa-headset"></i>
           <span>Agent Console</span>
         </a>
@@ -178,7 +156,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
           </div>
           <div>
             <div class="stat-label">Universal DID Mask</div>
-            <div class="stat-value" style="font-size: 16px;"><?php echo htmlspecialchars($maskDid); ?></div>
+            <div class="stat-value" style="font-size: 16px;">{{ config('roottech.mask_did', '912612385555') }}</div>
           </div>
         </div>
       </div>
@@ -192,7 +170,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
             </div>
             <div>
               <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Remote PBX Gateway</div>
-              <div style="font-family: monospace; font-size: 13px; color: var(--accent-cyan); font-weight: 600;"><?php echo htmlspecialchars($baseUrl); ?></div>
+              <div style="font-family: monospace; font-size: 13px; color: var(--accent-cyan); font-weight: 600;">{{ config('roottech.base_url', 'http://117.217.126.149:880/roottech/index.php') }}</div>
             </div>
           </div>
 
@@ -200,7 +178,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
             <div>
               <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;">Master API Token</div>
               <div style="font-family: monospace; font-size: 12px; color: var(--primary); font-weight: 600;">
-                <?php echo htmlspecialchars(substr($apiToken, 0, 16) . '...'); ?>
+                {{ substr(config('roottech.bearer_token', '11af5c25470d1306970a9175df8a1213da7435960305169f'), 0, 16) }}...
               </div>
             </div>
 
@@ -391,12 +369,12 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
         <form id="recordingsFilterForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px;">
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label">Date From</label>
-            <input type="date" id="recFromDate" class="form-input" value="<?php echo date('Y-m-d'); ?>">
+            <input type="date" id="recFromDate" class="form-input" value="{{ date('Y-m-d') }}">
           </div>
 
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label">Date To</label>
-            <input type="date" id="recToDate" class="form-input" value="<?php echo date('Y-m-d'); ?>">
+            <input type="date" id="recToDate" class="form-input" value="{{ date('Y-m-d') }}">
           </div>
 
           <div class="form-group" style="margin-bottom: 0;">
@@ -460,7 +438,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
 
               <div class="form-group">
                 <label class="form-label">Universal Mask DID Number</label>
-                <input type="text" id="mapMaskDid" class="form-input" value="<?php echo htmlspecialchars($maskDid); ?>" readonly style="opacity:0.9; font-weight:600; color:var(--primary);" required>
+                <input type="text" id="mapMaskDid" class="form-input" value="{{ config('roottech.mask_did', '912612385555') }}" readonly style="opacity:0.9; font-weight:600; color:var(--primary);" required>
               </div>
             </div>
 
@@ -491,7 +469,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
             <div class="search-grid">
               <div class="form-group">
                 <label class="form-label">Valid From</label>
-                <input type="text" id="mapValidFrom" class="form-input" value="<?php echo date('Y-m-d H:i:s'); ?>">
+                <input type="text" id="mapValidFrom" class="form-input" value="{{ date('Y-m-d H:i:s') }}">
               </div>
 
               <div class="form-group">
@@ -563,7 +541,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
             
             <div class="form-group">
               <label class="form-label">Request ID</label>
-              <input type="text" id="callCustReqId" class="form-input" value="REQ<?php echo time(); ?>">
+              <input type="text" id="callCustReqId" class="form-input" value="REQ{{ time() }}">
             </div>
 
             <button type="button" id="adminBtnCallCustomer" class="btn btn-primary" onclick="triggerCallCustomer()" style="width: 100%;">
@@ -578,7 +556,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
 
             <div class="form-group">
               <label class="form-label">Request ID</label>
-              <input type="text" id="callMaidReqId" class="form-input" value="REQ_MAID_<?php echo time(); ?>">
+              <input type="text" id="callMaidReqId" class="form-input" value="REQ_MAID_{{ time() }}">
             </div>
 
             <button type="button" id="adminBtnCallMaid" class="btn btn-secondary" onclick="triggerCallMaid()" style="width: 100%;">
@@ -704,9 +682,8 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
     </form>
   </div>
 </div>
+@endsection
 
-<div id="toastContainer" class="toast-container"></div>
-
-<script src="assets/js/admin.js"></script>
-</body>
-</html>
+@push('scripts')
+<script src="{{ asset('js/admin.js') }}"></script>
+@endpush
