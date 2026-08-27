@@ -60,6 +60,10 @@
   --badge-rose-text: #9f1239;
   --badge-rose-border: #fecdd3;
 
+  --badge-amber-bg: #fef3c7;
+  --badge-amber-text: #92400e;
+  --badge-amber-border: #fde68a;
+
   /* Layout tokens */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -71,7 +75,7 @@
 }
 
 /* ─── Dark Mode Overrides ─────────────────────────────────────────────────── */
-body.dark {
+body.dark, html.dark, html.dark body {
   --bg-dark: #0b0f19;
   --bg-sidebar: #111827;
   --bg-card: rgba(17, 24, 39, 0.85);
@@ -119,6 +123,10 @@ body.dark {
   --badge-rose-bg: rgba(244, 63, 94, 0.15);
   --badge-rose-text: #fb7185;
   --badge-rose-border: rgba(244, 63, 94, 0.3);
+
+  --badge-amber-bg: rgba(245, 158, 11, 0.15);
+  --badge-amber-text: #fbbf24;
+  --badge-amber-border: rgba(245, 158, 11, 0.3);
 }
 
 /* ─── Global Reset & Base Styles ─────────────────────────────────────────── */
@@ -1157,5 +1165,36 @@ body:not(.dark) .badge-amber {
   font-size: 14px;
   margin-bottom: 0;
 }
+
+/* ─── Modal Dialogs (Fixed & Centered Overlays) ─────────────────────────── */
+.modal-overlay {
+  display: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(6px) !important;
+  z-index: 2000 !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.modal-overlay.open {
+  display: flex !important;
+}
+
+.modal-box {
+  width: 90% !important;
+  max-width: 480px !important;
+  background: var(--modal-bg) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 24px !important;
+  box-shadow: var(--shadow-modal) !important;
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 
 

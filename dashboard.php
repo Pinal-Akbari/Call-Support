@@ -231,7 +231,7 @@ $queue = $agentSession['queue'] ?? 'root-support';
             <i class="fa-solid fa-phone-volume"></i>
             Click-To-Call Services
           </h3>
-          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px;">Rings agent extension (<?php echo htmlspecialchars($agentCode); ?>) and connects the mapped Customer or Maid number safely.</p>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px;">Rings agent extension (<?php echo htmlspecialchars($agentCode); ?>) and connects the mapped Customer or Maid securely via Universal BSNL DID masking (912612385555) for all calls.</p>
 
           <form id="moduleCallForm">
             <div class="form-grid">
@@ -252,7 +252,7 @@ $queue = $agentSession['queue'] ?? 'root-support';
             </div>
 
             <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px;">
-              <button type="button" id="btnCallCustomer" class="btn btn-primary" onclick="triggerCallTarget('customer')">
+              <button type="button" id="btnCallCustomer" class="btn btn-primary active" onclick="triggerCallTarget('customer')">
                 <i class="fa-solid fa-user-phone"></i>
                 <span>Call Customer</span>
               </button>
@@ -348,53 +348,54 @@ $queue = $agentSession['queue'] ?? 'root-support';
           
           <!-- Create Mapping -->
           <div class="glass-panel">
-            <h3 class="card-title" style="margin-bottom: 16px;">
+            <h3 class="card-title" style="margin-bottom: 6px;">
               <i class="fa-solid fa-mask"></i>
-              Create / Upsert Number Masking
+              Universal Number Masking
             </h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Central BSNL DID masking configured for all Customers & Maids across all bookings.</p>
 
             <form id="moduleMapForm">
               <div class="form-grid">
                 <div class="form-group">
-                  <label class="form-label">Booking ID</label>
-                  <input type="text" id="mMapBookingId" class="form-input" value="BK202600123" required>
+                  <label class="form-label"><i class="fa-solid fa-hashtag" style="color:#a855f7;"></i> Booking ID</label>
+                  <input type="text" id="mMapBookingId" class="form-input" value="BK202600123" placeholder="Enter Booking ID (e.g. BK202600123)" required>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Mask DID Number</label>
-                  <input type="text" id="mMapMaskDid" class="form-input" value="912612385555" required>
-                </div>
-              </div>
-
-              <div class="form-grid">
-                <div class="form-group">
-                  <label class="form-label">Customer ID</label>
-                  <input type="text" id="mMapCustomerId" class="form-input" value="CUST10001" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Customer Phone</label>
-                  <input type="text" id="mMapCustomerNumber" class="form-input" value="9227231501" required>
+                  <label class="form-label"><i class="fa-solid fa-phone-volume" style="color:#10b981;"></i> Universal Mask DID <span style="font-size:10px; color:var(--text-dim);">(Central Gateway)</span></label>
+                  <input type="text" id="mMapMaskDid" class="form-input" value="912612385555" readonly style="opacity:0.85; background:rgba(99,102,241,0.06);" title="Universal Company BSNL DID" required>
                 </div>
               </div>
 
               <div class="form-grid">
                 <div class="form-group">
-                  <label class="form-label">Maid ID</label>
-                  <input type="text" id="mMapMaidId" class="form-input" value="MAID501" required>
+                  <label class="form-label"><i class="fa-solid fa-id-card" style="color:#6366f1;"></i> Customer ID</label>
+                  <input type="text" id="mMapCustomerId" class="form-input" value="CUST10001" placeholder="e.g. CUST10001" required>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Maid Phone</label>
-                  <input type="text" id="mMapMaidNumber" class="form-input" value="9227233035" required>
+                  <label class="form-label"><i class="fa-solid fa-phone" style="color:#6366f1;"></i> Customer Phone</label>
+                  <input type="text" id="mMapCustomerNumber" class="form-input" value="9227231501" placeholder="e.g. 9227231501" required>
                 </div>
               </div>
 
               <div class="form-grid">
                 <div class="form-group">
-                  <label class="form-label">Valid From</label>
+                  <label class="form-label"><i class="fa-solid fa-id-badge" style="color:#ec4899;"></i> Maid ID</label>
+                  <input type="text" id="mMapMaidId" class="form-input" value="MAID501" placeholder="e.g. MAID501" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label"><i class="fa-solid fa-headset" style="color:#ec4899;"></i> Maid Phone</label>
+                  <input type="text" id="mMapMaidNumber" class="form-input" value="9227233035" placeholder="e.g. 9227233035" required>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label"><i class="fa-regular fa-calendar-check" style="color:#06b6d4;"></i> Valid From</label>
                   <input type="text" id="mMapValidFrom" class="form-input" value="<?php echo date('Y-m-d H:i:s'); ?>" required>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Valid Until</label>
-                  <input type="text" id="mMapValidUntil" class="form-input" value="2026-12-31 23:59:59" required>
+                  <label class="form-label"><i class="fa-regular fa-calendar-xmark" style="color:#f59e0b;"></i> Valid Until</label>
+                  <input type="text" id="mMapValidUntil" class="form-input" value="<?php echo date('Y-m-d H:i:s', strtotime('+1 year')); ?>" required>
                 </div>
               </div>
 

@@ -283,18 +283,47 @@ document.addEventListener('DOMContentLoaded', () => {
     mRecSearch.addEventListener('keyup', filterRecordingsLocally);
   }
 
-  // INITIAL LOAD ON DASHBOARD
-  refreshDashboardOverview();
+  // ─── INITIAL DASHBOARD LOAD & URL ROUTING ─────────────────────────────────
+  const initialHash = window.location.hash;
+  if (initialHash) {
+    const initialMod = getModuleIdFromSlug(initialHash);
+    switchModule(initialMod, false);
+  } else {
+    refreshDashboardOverview();
+  }
+
+  // Handle Browser Back / Forward buttons
+  window.addEventListener('popstate', () => {
+    const activeMod = getModuleIdFromSlug(window.location.hash);
+    switchModule(activeMod, false);
+  });
 
 });
 
-// SWITCH SIDEBAR MODULES
-function switchModule(moduleId) {
+// ─── URL SLUG HELPERS ────────────────────────────────────────────────────────
+function getSlugFromModuleId(moduleId) {
+  return moduleId ? moduleId.replace(/^module-/, '') : 'dashboard';
+}
+
+function getModuleIdFromSlug(slug) {
+  if (!slug) return 'module-dashboard';
+  slug = slug.replace(/^#/, '').toLowerCase().trim();
+  const valid = ['dashboard', 'call', 'agents', 'mapping', 'recordings'];
+  if (valid.includes(slug)) {
+    return 'module-' + slug;
+  }
+  return 'module-dashboard';
+}
+
+// SWITCH SIDEBAR MODULES & URL ROUTER
+function switchModule(moduleId, updateUrl = true) {
+  const targetId = moduleId.startsWith('module-') ? moduleId : ('module-' + moduleId);
+  const slug = getSlugFromModuleId(targetId);
   const menuItems = document.querySelectorAll('.menu-item');
   const sections = document.querySelectorAll('.module-section');
 
   menuItems.forEach(item => {
-    if (item.getAttribute('data-module') === moduleId) {
+    if (item.getAttribute('data-module') === targetId) {
       item.classList.add('active');
     } else {
       item.classList.remove('active');
@@ -302,7 +331,7 @@ function switchModule(moduleId) {
   });
 
   sections.forEach(sec => {
-    if (sec.id === moduleId) {
+    if (sec.id === targetId) {
       sec.classList.add('active');
     } else {
       sec.classList.remove('active');
@@ -311,22 +340,34 @@ function switchModule(moduleId) {
 
   const titles = {
     'module-dashboard': { title: 'Dashboard Overview', sub: 'Live Telephony status, quick call actions, and recent call activity' },
-    'module-call': { title: 'Click-to-Call Services', sub: 'Initiate outbound masked calls to Customers or Maid/Helpers' },
+    'module-call': { title: 'Click-to-Call Services', sub: 'Initiate outbound masked calls to Customers or Maid/Helpers with Universal BSNL DID' },
     'module-agents': { title: 'Agents & Extension Directory', sub: 'Manage support agent SIP extensions and active status' },
-    'module-mapping': { title: 'DID Number Masking', sub: 'Configure BSNL DID number masking for active customer bookings' },
+    'module-mapping': { title: 'Universal DID Masking', sub: 'Configure Universal BSNL DID number masking for all Customers & Maids' },
     'module-recordings': { title: 'Call Recordings & Instant Search', sub: 'Search call history instantly and listen to recorded call audio' }
   };
 
-  if (titles[moduleId]) {
-    document.getElementById('moduleTitle').textContent = titles[moduleId].title;
-    document.getElementById('moduleSubtitle').textContent = titles[moduleId].sub;
+  if (titles[targetId]) {
+    document.getElementById('moduleTitle').textContent = titles[targetId].title;
+    document.getElementById('moduleSubtitle').textContent = titles[targetId].sub;
   }
 
-  if (moduleId === 'module-dashboard') {
+  // Update browser URL hash
+  if (updateUrl) {
+    const targetHash = '#' + slug;
+    if (window.location.hash !== targetHash) {
+      if (history.pushState) {
+        history.pushState(null, '', targetHash);
+      } else {
+        window.location.hash = targetHash;
+      }
+    }
+  }
+
+  if (targetId === 'module-dashboard') {
     refreshDashboardOverview();
-  } else if (moduleId === 'module-agents') {
+  } else if (targetId === 'module-agents') {
     loadAgentsModule();
-  } else if (moduleId === 'module-recordings') {
+  } else if (targetId === 'module-recordings') {
     loadRecordingsModule();
   }
 }
@@ -415,10 +456,25 @@ async function triggerCallTarget(target) {
   const extension = document.getElementById('callExtension').value.trim();
   const requestId = document.getElementById('callRequestId').value.trim();
   
-  const resultCard = document.getElementById('callResultCard');
-  const tbody = document.getElementById('callResultTableBody');
-  const badge = document.getElementById('callStatusBadge');
-  const btn = target === 'customer' ? document.getElementById('btnCallCustomer') : document.getElementById('btnCallMaid');
+  const btnCust = document.getElementById('btnCallCustomer');
+  const btnMaid = document.getElementById('btnCallMaid');
+
+  // Toggle active button state
+  if (btnCust && btnMaid) {
+    if (target === 'customer') {
+      btnCust.classList.remove('btn-secondary');
+      btnCust.classList.add('btn-primary', 'active');
+      btnMaid.classList.remove('btn-primary', 'active');
+      btnMaid.classList.add('btn-secondary');
+    } else {
+      btnMaid.classList.remove('btn-secondary');
+      btnMaid.classList.add('btn-primary', 'active');
+      btnCust.classList.remove('btn-primary', 'active');
+      btnCust.classList.add('btn-secondary');
+    }
+  }
+
+  const btn = target === 'customer' ? btnCust : btnMaid;
 
   if (resultCard) resultCard.style.display = 'block';
   
