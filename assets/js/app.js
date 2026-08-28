@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const moduleTarget = item.getAttribute('data-module');
       if (moduleTarget) {
         switchModule(moduleTarget);
+        toggleMobileSidebar(true);
       }
     });
   });
@@ -485,6 +486,16 @@ async function triggerCallTarget(target) {
     btn.innerHTML = `<div class="spinner"></div> <span>Dialing ${target}...</span>`;
   }
 
+  // Check if Browser Simulator Mode is active
+  if (window.telephonySimulator && window.telephonySimulator.isSimulator()) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtn;
+    }
+    window.telephonySimulator.simulateOutboundCall(target, bookingId);
+    return;
+  }
+
   try {
     const action = target === 'customer' ? 'customer' : 'call_maid';
     const res = await fetch(`api.php?action=${action}`, {
@@ -504,7 +515,7 @@ async function triggerCallTarget(target) {
       if (badge) badge.innerHTML = `<span class="badge badge-emerald"><i class="fa-solid fa-phone"></i> ORIGINATING</span>`;
       
       tbody.innerHTML = `
-        <tr><td><strong>Booking ID</strong></td><td>${escapeHtml(data.booking_id || bookingId)}</td><td><span class="badge badge-cyan">Active Booking</span></td></tr>
+        <tr><td><strong>Booking ID</strong></td><td>${escapeHtml(data.booking_id || bookingId)}</td><td><span class="badge badge-purple">Active Booking</span></td></tr>
         <tr><td><strong>Call Target</strong></td><td><span class="badge badge-purple">${escapeHtml(target.toUpperCase())}</span></td><td><span class="badge badge-cyan">Target Type</span></td></tr>
         <tr><td><strong>Dialed Phone</strong></td><td><strong style="color:#6ee7b7;">${escapeHtml(data.dialed_number || data.customer_number || data.maid_number || 'N/A')}</strong></td><td><a href="tel:${data.dialed_number}" class="badge badge-emerald"><i class="fa-solid fa-phone"></i> Dialing</a></td></tr>
         <tr><td><strong>Request ID</strong></td><td>${escapeHtml(data.request_id || requestId)}</td><td><span class="badge badge-cyan">Tracker ID</span></td></tr>
@@ -516,7 +527,30 @@ async function triggerCallTarget(target) {
     } else {
       showToast(data.message || 'Call failed', 'error');
       if (badge) badge.innerHTML = `<span class="badge badge-rose"><i class="fa-solid fa-circle-xmark"></i> ${data.error_code || 'FAILED'}</span>`;
-      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:16px; color:#fca5a5;">Call failed: ${escapeHtml(data.message || 'Error')}</td></tr>`;
+      
+      const isSipOffline = (data.error_code === 'AGENT_NOT_REGISTERED' || (data.message && data.message.includes('not registered')));
+      
+      let fallbackHtml = '';
+      if (isSipOffline) {
+        fallbackHtml = `
+          <div style="margin-top: 14px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: var(--radius-sm); border: 1px solid rgba(245, 158, 11, 0.3);">
+            <div style="font-weight: 600; color: var(--accent-amber); font-size: 13px; margin-bottom: 6px;">
+              <i class="fa-solid fa-triangle-exclamation"></i> SIP Softphone 1001 is Offline
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+              In Production, open Zoiper/Linphone to receive live calls. For local testing without softphone, click below:
+            </p>
+            <button type="button" class="btn btn-sm btn-primary" onclick="telephonySimulator.simulateOutboundCall('${target}', '${bookingId}')" style="background: var(--accent-amber); border-color: var(--accent-amber); color: #000; font-weight: 600;">
+              <i class="fa-solid fa-play"></i> Test via Browser Simulator
+            </button>
+          </div>
+        `;
+      }
+
+      tbody.innerHTML = `
+        <tr><td colspan="3" style="text-align:center; padding:16px; color:#fca5a5;">Call failed: ${escapeHtml(data.message || 'Error')}</td></tr>
+        ${fallbackHtml ? `<tr><td colspan="3" style="padding:0 12px 12px 12px;">${fallbackHtml}</td></tr>` : ''}
+      `;
     }
 
   } catch (err) {
@@ -772,3 +806,18 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+function toggleMobileSidebar(forceClose = false) {
+  const sidebar = document.querySelector('.app-sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+
+  if (forceClose || sidebar.classList.contains('show-mobile')) {
+    sidebar.classList.remove('show-mobile');
+    if (backdrop) backdrop.classList.remove('active');
+  } else {
+    sidebar.classList.add('show-mobile');
+    if (backdrop) backdrop.classList.add('active');
+  }
+}
+

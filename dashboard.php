@@ -89,17 +89,31 @@ $queue = $agentSession['queue'] ?? 'root-support';
       </div>
     </aside>
 
+    <!-- SIDEBAR MOBILE BACKDROP OVERLAY -->
+    <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="toggleMobileSidebar()"></div>
+
     <!-- RIGHT MAIN CONTENT AREA -->
     <main class="app-main">
       
       <!-- TOP HEADER BAR -->
       <header class="main-header">
-        <div>
-          <h1 id="moduleTitle" class="page-title">Dashboard Overview</h1>
-          <p id="moduleSubtitle" class="page-sub">Live Telephony status, quick call actions, and recent call activity</p>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button type="button" id="mobileMenuBtn" class="mobile-toggle-btn btn btn-secondary btn-sm" onclick="toggleMobileSidebar()" title="Toggle Navigation Menu">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div>
+            <h1 id="moduleTitle" class="page-title">Dashboard Overview</h1>
+            <p id="moduleSubtitle" class="page-sub">Live Telephony status, quick call actions, and recent call activity</p>
+          </div>
         </div>
 
         <div style="display: flex; align-items: center; gap: 14px;">
+          <!-- Telephony Mode (Live / Simulator) Switch Badge -->
+          <div class="header-status-box" id="telephonyModeBadge" onclick="telephonySimulator.toggleMode()" style="cursor: pointer;" title="Click to Toggle Telephony Mode (Live PBX / Simulator)">
+            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 6px var(--accent-amber);"></span>
+            <span style="font-size: 11px; color: var(--accent-amber); font-weight: 700;">Simulator Active</span>
+          </div>
+
           <!-- Agent Status Selector -->
           <div style="display: flex; align-items: center; gap: 8px; background: rgba(20,28,45,0.7); padding: 6px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
             <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Status:</span>
@@ -170,6 +184,11 @@ $queue = $agentSession['queue'] ?? 'root-support';
             <button type="button" class="btn btn-primary" onclick="switchModule('module-call')">
               <i class="fa-solid fa-phone"></i>
               <span>Initiate Click-to-Call</span>
+            </button>
+
+            <button type="button" class="btn btn-secondary" onclick="telephonySimulator.simulateInboundCall()" style="border-color: var(--accent-emerald); color: var(--accent-emerald); font-weight: 600;">
+              <i class="fa-solid fa-phone-volume"></i>
+              <span>Simulate Inbound Call</span>
             </button>
 
             <button type="button" class="btn btn-secondary" onclick="switchModule('module-mapping')">
@@ -571,6 +590,7 @@ $queue = $agentSession['queue'] ?? 'root-support';
 
   <div id="toastContainer" class="toast-container"></div>
 
+  <script src="assets/js/telephony-simulator.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

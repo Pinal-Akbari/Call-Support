@@ -50,6 +50,11 @@
         <span>API Telephony Logs</span>
       </div>
 
+      <div class="menu-item" data-module="module-pbx">
+        <i class="fa-solid fa-network-wired"></i>
+        <span>PBX & Queues</span>
+      </div>
+
       <div class="menu-item" data-module="module-auth">
         <i class="fa-solid fa-shield-halved"></i>
         <span>System Auth Check</span>
@@ -84,14 +89,22 @@
     </div>
   </aside>
 
+  <!-- SIDEBAR MOBILE BACKDROP OVERLAY -->
+  <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="toggleMobileSidebar()"></div>
+
   <!-- RIGHT MAIN CONTENT AREA -->
   <main class="app-main">
     
     <!-- TOP HEADER BAR -->
     <header class="main-header">
-      <div>
-        <h1 id="moduleTitle" class="page-title">Admin Overview</h1>
-        <p id="moduleSubtitle" class="page-sub">Telephony PBX administration, agent extensions, DID routing, and call auditing</p>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button type="button" id="mobileMenuBtn" class="mobile-toggle-btn btn btn-secondary btn-sm" onclick="toggleMobileSidebar()" title="Toggle Navigation Menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <div>
+          <h1 id="moduleTitle" class="page-title">Admin Overview</h1>
+          <p id="moduleSubtitle" class="page-sub">Telephony PBX administration, agent extensions, DID routing, and call auditing</p>
+        </div>
       </div>
 
       <div style="display: flex; align-items: center; gap: 14px;">
@@ -99,6 +112,12 @@
         <div class="header-status-box" id="adminHealthBadge" title="PBX Server API Status">
           <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-emerald); box-shadow:0 0 6px var(--accent-emerald);"></span>
           <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">PBX Online</span>
+        </div>
+
+        <!-- Telephony Mode (Live / Simulator) Switch Badge -->
+        <div class="header-status-box" id="telephonyModeBadge" onclick="telephonySimulator.toggleMode()" style="cursor: pointer;" title="Click to Toggle Telephony Mode (Live PBX / Simulator)">
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-amber); box-shadow:0 0 6px var(--accent-amber);"></span>
+          <span style="font-size: 11px; color: var(--accent-amber); font-weight: 700;">Simulator Active</span>
         </div>
 
         <!-- Switch to Agent Console Button -->
@@ -201,6 +220,11 @@
           <button type="button" class="btn btn-primary" onclick="openCreateAgentModal()">
             <i class="fa-solid fa-user-plus"></i>
             <span>Create New Agent</span>
+          </button>
+
+          <button type="button" class="btn btn-secondary" onclick="telephonySimulator.simulateInboundCall()" style="border-color: var(--accent-emerald); color: var(--accent-emerald); font-weight: 600;">
+            <i class="fa-solid fa-phone-volume"></i>
+            <span>Simulate Inbound Call</span>
           </button>
 
           <button type="button" class="btn btn-secondary" onclick="switchModule('module-mapping')">
@@ -616,6 +640,155 @@
       </div>
     </section>
 
+    <!-- MODULE 8: PBX QUEUES, IVRS & INBOUND ROUTES -->
+    <section id="module-pbx" class="module-section">
+      
+      <!-- Top PBX Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon cyan">
+            <i class="fa-solid fa-people-group"></i>
+          </div>
+          <div>
+            <div class="stat-label">Call Queues</div>
+            <div class="stat-value" id="statPbxQueues">--</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon emerald">
+            <i class="fa-solid fa-sitemap"></i>
+          </div>
+          <div>
+            <div class="stat-label">IVR Auto-Attendants</div>
+            <div class="stat-value" id="statPbxIvrs" style="color: var(--accent-emerald);">--</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <i class="fa-solid fa-volume-high"></i>
+          </div>
+          <div>
+            <div class="stat-label">Audio Prompts</div>
+            <div class="stat-value" id="statPbxGreetings">--</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon blue">
+            <i class="fa-solid fa-route"></i>
+          </div>
+          <div>
+            <div class="stat-label">Inbound Routes</div>
+            <div class="stat-value" id="statPbxInbound">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action & Control Bar -->
+      <div class="glass-panel" style="margin-bottom: 24px; padding: 16px 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--badge-cyan-bg); display: flex; align-items: center; justify-content: center; color: var(--accent-cyan); font-size: 16px; border: 1px solid var(--badge-cyan-border);">
+              <i class="fa-solid fa-network-wired"></i>
+            </div>
+            <div>
+              <div style="font-weight: 700; color: var(--text-bright); font-size: 14px;">Asterisk PBX Telephony Engine</div>
+              <div style="font-size: 12px; color: var(--text-muted);">Manage call queues, IVR keypress flows, and live Asterisk dialplans</div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="loadPbxOverview()" style="display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-rotate"></i>
+              <span>Refresh PBX Data</span>
+            </button>
+            <button type="button" id="btnApplyPbx" class="btn btn-primary btn-sm" onclick="applyPbxDialplan()" style="display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-arrows-rotate"></i>
+              <span>Apply & Reload Dialplan</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 1: Call Queues -->
+      <div class="glass-panel card" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 class="card-title" style="margin: 0;">
+              <i class="fa-solid fa-people-group"></i>
+              Support & Department Call Queues
+            </h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">Inbound calls to queues ring available agents based on the queue strategy</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openCreateQueueModal()">
+            <i class="fa-solid fa-plus"></i> Create Queue
+          </button>
+        </div>
+        <div id="pbxQueuesContainer">
+          <div style="padding: 24px; text-align: center; color: var(--text-muted);"><div class="spinner" style="margin:0 auto 10px;"></div>Loading Queues...</div>
+        </div>
+      </div>
+
+      <!-- Card 2: IVR Auto-Attendant Menus -->
+      <div class="glass-panel card" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 class="card-title" style="margin: 0;">
+              <i class="fa-solid fa-sitemap"></i>
+              IVR Auto-Attendant Trees
+            </h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">Interactive voice response menus with DTMF keypress actions</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openCreateIvrModal()">
+            <i class="fa-solid fa-plus"></i> Create IVR Menu
+          </button>
+        </div>
+        <div id="pbxIvrsContainer">
+          <div style="padding: 24px; text-align: center; color: var(--text-muted);"><div class="spinner" style="margin:0 auto 10px;"></div>Loading IVR Menus...</div>
+        </div>
+      </div>
+
+      <!-- Card 3: Custom Greetings & Audio Prompts -->
+      <div class="glass-panel card" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 class="card-title" style="margin: 0;">
+              <i class="fa-solid fa-volume-high"></i>
+              IVR Audio Greetings Library
+            </h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">Available stock sounds and custom uploaded audio prompts (8kHz mono WAV)</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openUploadGreetingModal()">
+            <i class="fa-solid fa-file-audio"></i> Upload Greeting Audio
+          </button>
+        </div>
+        <div id="pbxGreetingsContainer">
+          <div style="padding: 24px; text-align: center; color: var(--text-muted);"><div class="spinner" style="margin:0 auto 10px;"></div>Loading Audio Greetings...</div>
+        </div>
+      </div>
+
+      <!-- Card 4: Inbound DID Phone Routing -->
+      <div class="glass-panel card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 class="card-title" style="margin: 0;">
+              <i class="fa-solid fa-route"></i>
+              Inbound DID Routing Rules
+            </h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">Direct unmapped PSTN callers to specific IVR trees, queues, or agent extensions</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openCreateInboundModal()">
+            <i class="fa-solid fa-plus"></i> Add Inbound Route
+          </button>
+        </div>
+        <div id="pbxInboundContainer">
+          <div style="padding: 24px; text-align: center; color: var(--text-muted);"><div class="spinner" style="margin:0 auto 10px;"></div>Loading Inbound Routes...</div>
+        </div>
+      </div>
+    </section>
+
     <!-- MODULE 7: SYSTEM AUTH & HEALTH CHECK -->
     <section id="module-auth" class="module-section">
       <div class="glass-panel card">
@@ -682,8 +855,213 @@
     </form>
   </div>
 </div>
+
+<!-- Create Queue Modal -->
+<div id="createQueueModal" class="modal-overlay" style="display: none;">
+  <div class="glass-panel modal-box modal-animated">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+      <h3 class="card-title" style="margin-bottom: 0;">Create Call Queue (<code>?r=pbx/queue</code>)</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeCreateQueueModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="createQueueForm">
+      <div class="form-group">
+        <label class="form-label">Queue Name (Slug, e.g. billing)</label>
+        <input type="text" id="newQueueName" class="form-input" placeholder="e.g. billing" required pattern="^[a-zA-Z0-9_-]+$">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Display Name</label>
+        <input type="text" id="newQueueDisplayName" class="form-input" placeholder="e.g. Billing Support" required>
+      </div>
+
+      <div class="grid2">
+        <div class="form-group">
+          <label class="form-label">Strategy</label>
+          <select id="newQueueStrategy" class="form-input">
+            <option value="rrmemory">rrmemory (Round Robin with Memory)</option>
+            <option value="ringall">ringall (Ring all available agents)</option>
+            <option value="leastrecent">leastrecent (Agent idle longest)</option>
+            <option value="random">random</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Wait Time (Seconds)</label>
+          <input type="number" id="newQueueWaitSec" class="form-input" value="120" min="10" max="600">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Assign Agents to Queue</label>
+        <div id="queueAgentsCheckboxContainer" style="max-height: 140px; overflow-y: auto; padding: 10px 12px; background: var(--bg-card-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-glass);">
+          Loading agents...
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Queue</button>
+        <button type="button" class="btn btn-secondary" onclick="closeCreateQueueModal()" style="width: 100%;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Create IVR Modal -->
+<div id="createIvrModal" class="modal-overlay" style="display: none;">
+  <div class="glass-panel modal-box modal-animated" style="max-width: 580px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+      <h3 class="card-title" style="margin-bottom: 0;">Create IVR Auto-Attendant (<code>?r=pbx/ivr</code>)</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeCreateIvrModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="createIvrForm">
+      <div class="grid2">
+        <div class="form-group">
+          <label class="form-label">IVR Name</label>
+          <input type="text" id="newIvrName" class="form-input" placeholder="e.g. Sales IVR" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Feature Extension</label>
+          <input type="text" id="newIvrExten" class="form-input" placeholder="e.g. 8001" required>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="form-group">
+          <label class="form-label">Greeting Audio</label>
+          <select id="newIvrGreeting" class="form-input">
+            <option value="hello">hello</option>
+            <option value="hello-world">hello-world</option>
+            <option value="one-moment-please">one-moment-please</option>
+            <option value="demo-thanks">demo-thanks</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Timeout (Seconds)</label>
+          <input type="number" id="newIvrTimeout" class="form-input" value="8" min="3" max="30">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" style="font-weight: 600;">Keypress Menu Routing:</label>
+        
+        <!-- Option 1 -->
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+          <input type="text" id="ivrOptDigit1" class="form-input" value="1" style="width: 55px; text-align: center;" placeholder="Digit">
+          <select id="ivrOptType1" class="form-input" style="width: 140px;">
+            <option value="extension">Extension</option>
+            <option value="queue">Queue</option>
+            <option value="hangup">Hangup</option>
+          </select>
+          <input type="text" id="ivrOptValue1" class="form-input" placeholder="Value (e.g. 1001 or root-support)" value="1001">
+        </div>
+
+        <!-- Option 2 -->
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
+          <input type="text" id="ivrOptDigit2" class="form-input" value="9" style="width: 55px; text-align: center;" placeholder="Digit">
+          <select id="ivrOptType2" class="form-input" style="width: 140px;">
+            <option value="queue" selected>Queue</option>
+            <option value="extension">Extension</option>
+            <option value="hangup">Hangup</option>
+          </select>
+          <input type="text" id="ivrOptValue2" class="form-input" placeholder="Value" value="root-support">
+        </div>
+
+        <!-- Option 3 -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="ivrOptDigit3" class="form-input" value="0" style="width: 55px; text-align: center;" placeholder="Digit">
+          <select id="ivrOptType3" class="form-input" style="width: 140px;">
+            <option value="hangup" selected>Hangup</option>
+            <option value="extension">Extension</option>
+            <option value="queue">Queue</option>
+          </select>
+          <input type="text" id="ivrOptValue3" class="form-input" placeholder="Value" value="">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save IVR Menu</button>
+        <button type="button" class="btn btn-secondary" onclick="closeCreateIvrModal()" style="width: 100%;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Upload Greeting Modal -->
+<div id="uploadGreetingModal" class="modal-overlay" style="display: none;">
+  <div class="glass-panel modal-box modal-animated">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+      <h3 class="card-title" style="margin-bottom: 0;">Upload IVR Greeting Audio (<code>?r=pbx/ivr/greeting</code>)</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeUploadGreetingModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="uploadGreetingForm">
+      <div class="form-group">
+        <label class="form-label">Audio File (.wav or .mp3 - auto converted to 8kHz mono)</label>
+        <input type="file" id="greetingAudioFile" class="form-input" accept=".wav,.mp3" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Slug Name (Optional, e.g. welcome-prompt)</label>
+        <input type="text" id="greetingSlugName" class="form-input" placeholder="e.g. welcome-custom">
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Upload Audio</button>
+        <button type="button" class="btn btn-secondary" onclick="closeUploadGreetingModal()" style="width: 100%;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Create Inbound Route Modal -->
+<div id="createInboundModal" class="modal-overlay" style="display: none;">
+  <div class="glass-panel modal-box modal-animated">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+      <h3 class="card-title" style="margin-bottom: 0;">Add Inbound DID Route (<code>?r=pbx/inbound</code>)</h3>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeCreateInboundModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="createInboundForm">
+      <div class="form-group">
+        <label class="form-label">DID Number (Leave empty for default / all unmapped calls)</label>
+        <input type="text" id="newInboundDid" class="form-input" placeholder="e.g. 912612385555">
+      </div>
+
+      <div class="grid2">
+        <div class="form-group">
+          <label class="form-label">Destination Type</label>
+          <select id="newInboundType" class="form-input">
+            <option value="queue">Queue</option>
+            <option value="ivr">IVR Menu</option>
+            <option value="extension">SIP Extension</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Destination Target</label>
+          <input type="text" id="newInboundValue" class="form-input" placeholder="e.g. root-support or 1001" required value="root-support">
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Route</button>
+        <button type="button" class="btn btn-secondary" onclick="closeCreateInboundModal()" style="width: 100%;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/telephony-simulator.js') }}"></script>
 <script src="{{ asset('js/admin.js') }}"></script>
 @endpush
