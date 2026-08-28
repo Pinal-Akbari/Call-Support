@@ -25,6 +25,7 @@
 
   <div id="toastContainer" class="toast-container"></div>
 
+  <script src="{{ asset('js/telephony-simulator.js') }}"></script>
   <script src="{{ asset('js/app.js') }}"></script>
   @stack('scripts')
 </body>

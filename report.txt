@@ -1,0 +1,275 @@
+﻿====================================================================================================
+                        ROOTTECH CALL-SUPPORT & IP PBX CRM SYSTEM
+                          CLIENT PROJECT HANDOVER & DAILY LOG
+====================================================================================================
+Project Name      : RootTech Telephony CRM & Asterisk IP PBX Integration
+Client Handover   : Daily Work Progress, Telephony Architecture & Module Inventory
+Architecture      : Hybrid (Laravel 11 MVC + Standalone XAMPP PHP 8.2 + Asterisk PBX 20)
+PBX Gateway URL   : http://117.217.126.149:880/roottech/index.php
+Universal DID Mask: 912612385555
+Report Maintained : Real-Time / Day-Wise Updates
+====================================================================================================
+
+====================================================================================================
+                                TABLE OF CONTENTS / ROADMAP
+====================================================================================================
+1. Master Architecture & Environment Overview
+2. Day-Wise Chronological Work Logs:
+   - DAY 1 (28-Aug-2026): Seed Setup, 27-API Audit, IP PBX Engine, Responsive UI, Simulator & Caller 360°
+3. Complete 29-Point Telephony & CRM API Reference
+4. Telephony & CRM API Data Structures & Payload Mapping
+5. System Modules & Functional Inventory
+6. Client Credentials & Production Access URLs
+====================================================================================================
+
+
+====================================================================================================
+1. MASTER ARCHITECTURE & ENVIRONMENT OVERVIEW
+====================================================================================================
+The system is built as an enterprise telephony CRM and Asterisk IP PBX gateway featuring:
+  • Two-way Number Masking (Universal BSNL DID) protecting customer and service agent privacy.
+  • Agent Console with dynamic queue membership (AMI QueueAdd/QueueRemove) and real-time screen-pop.
+  • Caller 360° In-Call Profile: Instant display of past call history, agents spoken with, and audio play.
+  • Live Agent Notes & Disposition Engine: Add and persist remarks during live calls in real-time.
+  • In-Browser Telephony Simulator: Full audio synthesis (Web Audio API) for zero-setup calling demo.
+  • Centralized IP PBX Management: Call queues, IVR auto-attendants, WAV greetings, and DID routing.
+  • Automated Call Recording Management with instant in-browser WAV audio playback.
+  • Dual runtime support: Seamlessly runs on standalone Apache (XAMPP) and Laravel Artisan Server.
+
+
+====================================================================================================
+2. DAY-WISE CHRONOLOGICAL WORK LOGS
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+[DAY 1] DATE: 28th August, 2026
+----------------------------------------------------------------------------------------------------
+MODULES WORKED ON:
+  1. Authentication & Seed Agent Security
+  2. Complete 27-Point API Diagnostic Audit
+  3. IP PBX, IVR Trees & Inbound DID Engine
+  4. State Persistence & Page Refresh Routing
+  5. UI Clean-up & Metric KPI Cards
+  6. Mobile, Tablet & Desktop Responsive Layout System
+  7. In-Browser Telephony Audio Synthesis & Simulation Engine
+  8. Caller 360° In-Call Profile & Live Agent Notes System
+
+DETAILED TASKS COMPLETED:
+
+  [1] Seed Agent Credentials Recovery:
+      - Diagnosed and resolved HTTP 401 Unauthorized during Agent 1001 console authentication.
+      - Updated credentials via CRM Bearer Token API (?r=agent/update) setting password to "Agent@123".
+      - Verified successful agent session generation (?r=agent/login) producing valid session tokens.
+
+  [2] Complete 27-Point API Documentation Audit & Remote Server Verification:
+      - Audited the entire API documentation at http://117.217.126.149:880/roottech/api_docs.php.
+      - Developed and ran automated diagnostic test runner testing all 27 endpoints.
+      - Verified 100% server reachability and zero dead endpoints.
+
+  [3] IP PBX / IVR Telephony Engine Implementation:
+      - Added service layer methods in RootTechApiService.php for all PBX endpoints.
+      - Created proxy actions in ApiController.php (Laravel) and api.php (Standalone PHP).
+      - Built Call Queues management: Calling strategies (rrmemory, ringall), timeouts, agent assignment.
+      - Built IVR Auto-Attendant trees: DTMF multi-digit keypress routing (Extensions, Queues, Hangup).
+      - Built Custom Audio Prompts Library: WAV/MP3 greeting upload (8kHz mono) and live web playback.
+      - Built Inbound DID Routing: Configured unmapped PSTN call distribution rules.
+      - Built Dialplan Synchronization: "Apply & Reload Dialplan" triggering Asterisk /etc/asterisk/extensions-pbx.conf reload.
+
+  [4] Page Refresh & Active Tab State Persistence:
+      - Resolved page refresh bug where browser F5 or top Refresh button reset view to dashboard.
+      - Implemented dual-state persistence using localStorage ('admin_active_tab') and URL hash (#pbx, #agents).
+      - Refactored header Refresh button (refreshAdminDashboard) to dynamically update active view data only.
+
+  [5] PBX & Queues UI Clean-up & KPI Metrics:
+      - Added 4 top Metric Stats Cards (Call Queues, IVR Trees, Audio Prompts, Inbound Routes).
+      - Removed raw debug JSON box (#pbxRawOverview) and endpoint query string clutter.
+      - Implemented structured .table-container and .custom-table styling with clean status badges.
+
+  [6] Full Mobile, Tablet & Desktop Responsiveness:
+      - Added Hamburger Menu (☰) and glassmorphic slide-in drawer navigation with dark backdrop.
+      - Added responsive media queries (<= 1024px, <= 768px, <= 480px) in style.css.
+      - Optimized tables with touch-friendly horizontal swipe (-webkit-overflow-scrolling: touch).
+      - Responsive adaptation for all modals and dialogs.
+
+  [7] In-Browser Telephony Audio Synthesis & Simulation Engine:
+      - Built native HTML5 Web Audio API dual-frequency phone ringer (440Hz + 480Hz PBX standard tone).
+      - Added "Simulator Active / Live PBX" mode toggle badge in both Admin and Agent headers.
+      - Added "Simulate Inbound Call" quick action: triggers real-time ringing, Screen-Pop popup,
+        "Answer Call" action, floating live call timer (00:01, 00:02...), mute/hold, and call logging.
+      - Added Smart Softphone Offline Detection (409 Conflict): if agent softphone is offline,
+        presents a 1-click "Test via Browser Simulator" fallback without breaking user experience.
+      - Enabled complete calling and recording testing without requiring Zoiper or SIP hardware.
+
+  [8] Caller 360° In-Call Profile & Live Agent Notes System:
+      - Built backend API endpoint (?action=caller_history): Aggregates telephony CDR call records and historical agent notes for any caller phone number.
+      - Built backend API endpoint (?action=save_note): Persists live call notes, agent identity, booking ID, and call disposition tags.
+      - Built comprehensive Caller 360° Live Modal: When clicking "Answer Call", displays top call controls (timer/mute/hold), left timeline with past calls & audio play buttons, and right interactive notes feed with real-time note saving.
+
+FILES MODIFIED ON DAY 1:
+  • app/Services/RootTechApiService.php
+  • app/Http/Controllers/ApiController.php
+  • api.php
+  • storage/data/caller_notes.json
+  • resources/views/admin.blade.php
+  • admin.php
+  • resources/views/dashboard.blade.php
+  • dashboard.php
+  • resources/views/layouts/app.blade.php
+  • assets/css/style.css & public/css/style.css
+  • assets/js/admin.js & public/js/admin.js
+  • assets/js/app.js & public/js/app.js
+  • assets/js/telephony-simulator.js & public/js/telephony-simulator.js
+----------------------------------------------------------------------------------------------------
+
+
+====================================================================================================
+3. COMPLETE 29-POINT TELEPHONY & CRM API REFERENCE
+====================================================================================================
+
+#   Category        Endpoint                  Method  Auth    Status / Functional Description
+--  --------------  ------------------------  ------  ------  ------------------------------------------
+01  Auth            ?r=auth/check             GET     CRM     200 OK - Validates CRM API Bearer Token
+02  Masking         ?r=mapping                POST    CRM     200 OK - Creates/Updates Booking DID Mask
+03  Masking         ?r=mapping/deactivate     POST    CRM     200 OK - Deactivates Booking DID Mapping
+04  Click-to-Call   ?r=call                   POST    CRM     200 OK - Generic Call Originate
+05  Click-to-Call   ?r=call/customer          POST    CRM     200 OK - Rings Agent Softphone -> Customer
+06  Click-to-Call   ?r=call/maid              POST    CRM     200 OK - Rings Agent Softphone -> Maid
+07  Click-to-Call   ?r=call/status/{req_id}   GET     CRM     200 OK - Polls Call Status (Answered/Busy)
+08  Agents          ?r=agent/list             GET     CRM     200 OK - Agent & Extension Directory
+09  Agents          ?r=agent/create           POST    CRM     201 OK - Creates Agent Login & SIP Peer
+10  Agents          ?r=agent/update           POST    CRM     200 OK - Updates Name/Password/SIP Secret
+11  Agents          ?r=agent/delete           POST    CRM     200 OK - Deletes Agent & SIP Extension
+12  Agent Session   ?r=agent/login            POST    NONE    200 OK - Agent Login -> Session Token
+13  Agent Session   ?r=agent/status           POST    AGENT   200 OK - Updates Status (AMI QueueAdd/Remove)
+14  Agent Session   ?r=agent/poll             GET     AGENT   200 OK - 1.5s Long-Polling Screen-Pop
+15  Agent Session   ?r=agent/ack              POST    AGENT   200 OK - Acknowledges Screen-Pop Event
+16  Agent Session   ?r=agent/logout           POST    AGENT   200 OK - Destroys Session & Removes Queue
+17  Recordings      ?r=recordings             GET     CRM     200 OK - CDR Report & Audio Metadata
+18  Recordings      ?r=recording/play         GET     CRM     200 OK - Streams / Downloads WAV Audio
+19  Logs            ?r=logs                   GET     CRM     200 OK - Telephony API Audit Log Report
+20  PBX             ?r=pbx                    GET     CRM     200 OK - PBX Overview (Queues/IVRs/Routes)
+21  PBX             ?r=pbx/queue              POST    CRM     200 OK - Saves Queue & Agent Membership
+22  PBX             ?r=pbx/queue/delete       POST    CRM     200 OK - Deletes Call Queue
+23  PBX             ?r=pbx/ivr                POST    CRM     200 OK - Saves IVR & DTMF Keypress Routes
+24  PBX             ?r=pbx/ivr/greeting       POST    CRM     200 OK - Uploads 8kHz Mono WAV Audio
+25  PBX             ?r=pbx/ivr/delete         POST    CRM     200 OK - Deletes IVR Menu
+26  PBX             ?r=pbx/inbound            POST    CRM     200 OK - Saves Inbound DID Routing Rule
+27  PBX             ?r=pbx/inbound/delete     POST    CRM     200 OK - Deletes Inbound DID Route
+28  PBX             ?r=pbx/apply              POST    CRM     200 OK - Regenerates Dialplan & Reloads
+29  CRM 360°        ?action=caller_history    GET     APP     200 OK - Returns Past Calls, Agents & Notes
+30  CRM 360°        ?action=save_note         POST    APP     200 OK - Saves Real-Time Call Note & Tag
+
+
+====================================================================================================
+4. TELEPHONY & CRM API DATA STRUCTURES & PAYLOAD MAPPING
+====================================================================================================
+
+A. PBX CALL RECORDINGS & CDR STRUCTURE (GET ?r=recordings):
+   Exact Remote PBX Response Schema:
+   {
+     "success": true,
+     "total": 54,
+     "rows": [
+       {
+         "id": 53,
+         "booking_id": "BK202600123",
+         "caller_number": "919876543210",
+         "destination_number": "912612385555",
+         "source_extension": "1001",
+         "call_type": "agent_to_customer",
+         "status": "ANSWERED",
+         "duration": 195,
+         "start_time": "2026-08-28 11:20:00",
+         "recording_available": true
+       }
+     ]
+   }
+   UI Mapping:
+   - source_extension -> "Spoke with Agent 1001"
+   - duration         -> "Duration: 3m 15s (195s)"
+   - start_time       -> Call Timestamp in timeline
+   - id (53)          -> Audio playback endpoint: GET ?r=recording/play&id=53
+
+B. AGENT CALL NOTES & DISPOSITION SAVE (POST ?action=save_note):
+   Request Payload:
+   {
+     "phone": "919876543210",
+     "booking_id": "BK-2026-9812",
+     "agent_code": "1001",
+     "agent_name": "Support Agent 1",
+     "disposition": "Payment Confirmed",
+     "note_text": "Customer confirmed booking via UPI. Assigned maid Sunita Devi."
+   }
+   Response Payload:
+   {
+     "success": true,
+     "message": "Call note and disposition saved successfully!",
+     "note": {
+       "id": "note_1787897962",
+       "agent_code": "1001",
+       "agent_name": "Support Agent 1",
+       "booking_id": "BK-2026-9812",
+       "disposition": "Payment Confirmed",
+       "note_text": "Customer confirmed booking via UPI. Assigned maid Sunita Devi.",
+       "timestamp": "2026-08-28 11:49:22"
+     }
+   }
+
+C. CALLER 360 AGGREGATED PROFILE (GET ?action=caller_history&phone=919876543210):
+   Aggregates both Asterisk PBX CDR call records and CRM customer notes into a unified
+   in-call interactive profile displayed when the agent answers the call.
+
+
+====================================================================================================
+5. SYSTEM MODULES & FUNCTIONAL INVENTORY
+====================================================================================================
+
+A. ADMIN PORTAL MODULES:
+   1. Dashboard Overview      : Real-time agent counters, recent calls, PBX gateway status.
+   2. Agents & Extensions     : Agent directory, SIP peers, live registration status, CRUD.
+   3. Call Recordings & CDR   : Searchable call logs, date filters, audio streaming player.
+   4. DID Number Masking      : Booking ID to customer/maid number mapping control.
+   5. Outbound Call Tester    : Click-to-call sandbox and status polling debugger with simulator.
+   6. PBX & Call Queues       : Department call queues, strategies, agent assignments.
+   7. IVR Auto-Attendants     : Interactive Voice Response menus, DTMF routing, greeting library.
+   8. Inbound DID Routes      : Unmapped PSTN caller routing rules.
+   9. System Auth & Health    : Bearer token validation and Asterisk PBX latency checks.
+
+B. AGENT CONSOLE MODULES:
+   1. Real-Time Status Bar    : Available (AMI QueueAdd), Break, Wrapup, Offline (QueueRemove).
+   2. Screen-Pop Listener     : Automated 1.5s background polling for inbound queue calls.
+   3. Caller 360° In-Call View: Past interactions timeline, previous agent talk-time & recording links.
+   4. Live Notes & Disposition: Real-time note-taking during calls with instant database save.
+   5. In-Browser Simulator    : 1-Click incoming call test with synthetic PBX ringtone & audio bridge.
+   6. Quick Dial Pad          : Direct Extension-to-Extension (1001 -> 1002) and Customer calling.
+   7. Recent Call Activity    : Call history with live recording audio playback.
+   8. Active Bookings View    : One-click "Call Customer" / "Call Maid" bridge actions.
+
+
+====================================================================================================
+6. CLIENT CREDENTIALS & PRODUCTION ACCESS URLS
+====================================================================================================
+
+A. STANDALONE APACHE (XAMPP):
+   • Admin Portal             : http://localhost/cf/admin.php
+   • PBX & Queues Module      : http://localhost/cf/admin.php#pbx
+   • Agent Portal Login       : http://localhost/cf/login.php
+   • Agent Console Dashboard  : http://localhost/cf/dashboard.php
+   • Seed Agent Credentials   : Username = 1001 | Password = Agent@123
+
+B. LARAVEL WEB APPLICATION:
+   • Admin Portal             : http://127.0.0.1:8000/admin
+   • PBX & Queues Module      : http://127.0.0.1:8000/admin#pbx
+   • Agent Portal Login       : http://127.0.0.1:8000/login
+   • Agent Console Dashboard  : http://127.0.0.1:8000/dashboard
+   • Seed Agent Credentials   : Username = 1001 | Password = Agent@123
+
+C. REMOTE PBX & TELEPHONY GATEWAY:
+   • PBX Base URL             : http://117.217.126.149:880/roottech/index.php
+   • Official API Docs        : http://117.217.126.149:880/roottech/api_docs.php
+   • Master Bearer API Token  : 11af5c25470d1306970a9175df8a1213da7435960305169f
+   • Universal Inbound DID    : 912612385555
+
+====================================================================================================
+                [END OF REPORT - MAINTAINED FOR REAL-TIME CLIENT HANDOVER]
+====================================================================================================

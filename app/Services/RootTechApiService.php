@@ -358,4 +358,154 @@ class RootTechApiService
             'message' => 'Audio recording not found or unavailable'
         ], 404);
     }
+
+    /**
+     * Get PBX Overview (r=pbx)
+     */
+    public function getPbxOverview(): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->timeout(15)
+                ->get("{$this->baseUrl}?r=pbx");
+
+            return $response->json() ?? ['success' => false, 'message' => 'Failed to fetch PBX overview'];
+        } catch (\Throwable $e) {
+            Log::error('RootTechApi pbx overview exception: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Create or Update Queue (r=pbx/queue)
+     */
+    public function savePbxQueue(array $data): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->asJson()
+                ->post("{$this->baseUrl}?r=pbx/queue", $data);
+
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Delete Queue (r=pbx/queue/delete)
+     */
+    public function deletePbxQueue(int $id): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->asJson()
+                ->post("{$this->baseUrl}?r=pbx/queue/delete", ['id' => $id]);
+
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Create or Update IVR Menu (r=pbx/ivr)
+     */
+    public function savePbxIvr(array $data): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->asJson()
+                ->post("{$this->baseUrl}?r=pbx/ivr", $data);
+
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Upload IVR Greeting File (r=pbx/ivr/greeting)
+     */
+    public function uploadIvrGreeting($file, ?string $name = null): array
+    {
+        try {
+            $req = Http::withToken($this->token);
+            if ($name) {
+                $req = $req->attach('file', file_get_contents($file->getRealPath()), $file->getClientOriginalName())
+                           ->attach('name', $name);
+            } else {
+                $req = $req->attach('file', file_get_contents($file->getRealPath()), $file->getClientOriginalName());
+            }
+
+            $response = $req->post("{$this->baseUrl}?r=pbx/ivr/greeting");
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Delete IVR Menu (r=pbx/ivr/delete)
+     */
+    public function deletePbxIvr(int $id): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->asJson()
+                ->post("{$this->baseUrl}?r=pbx/ivr/delete", ['id' => $id]);
+
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Create or Update Inbound DID Route (r=pbx/inbound)
+     */
+    public function savePbxInbound(array $data): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->asJson()
+                ->post("{$this->baseUrl}?r=pbx/inbound", $data);
+
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Delete Inbound DID Route (r=pbx/inbound/delete)
+     */
+    public function deletePbxInbound(int $id): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->asJson()
+                ->post("{$this->baseUrl}?r=pbx/inbound/delete", ['id' => $id]);
+
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Apply and Reload PBX Dialplan (r=pbx/apply)
+     */
+    public function applyPbxDialplan(): array
+    {
+        try {
+            $response = Http::withToken($this->token)
+                ->asJson()
+                ->post("{$this->baseUrl}?r=pbx/apply");
+
+            return $response->json() ?? ['success' => false];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
 }

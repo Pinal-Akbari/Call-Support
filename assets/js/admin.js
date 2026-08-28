@@ -36,13 +36,36 @@ const adminModuleTitles = {
     title: 'API Telephony Logs',
     sub: 'Historical records of all telephony API transactions, request latencies, and responses'
   },
+  'module-pbx': {
+    title: 'PBX, Queues & IVR Routing',
+    sub: 'Manage call queues, IVR auto-attendant menus, inbound DID routes, and reload Asterisk dialplans'
+  },
   'module-auth': {
     title: 'System Health & Auth',
     sub: 'Validates the Bearer API Token against the remote PBX server endpoint'
   }
 };
 
-function switchModule(targetId) {
+const hashModuleMap = {
+  'dashboard': 'module-dashboard',
+  'agents': 'module-agents',
+  'recordings': 'module-recordings',
+  'mapping': 'module-mapping',
+  'tester': 'module-tester',
+  'clicktocall': 'module-tester',
+  'reports': 'module-reports',
+  'logs': 'module-reports',
+  'pbx': 'module-pbx',
+  'queues': 'module-pbx',
+  'ivr': 'module-pbx',
+  'auth': 'module-auth'
+};
+
+function switchModule(targetId, updateHash = true) {
+  if (!targetId || !document.getElementById(targetId)) {
+    targetId = 'module-dashboard';
+  }
+
   document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
   document.querySelectorAll('.module-section').forEach(s => s.classList.remove('active'));
 
@@ -60,31 +83,73 @@ function switchModule(targetId) {
     if (subEl) subEl.textContent = adminModuleTitles[targetId].sub;
   }
 
-  // Update URL hash without jumping
+  // Save active tab preference so it persists across refreshes
+  try {
+    localStorage.setItem('admin_active_tab', targetId);
+  } catch (e) {}
+
+  // Update URL hash without forcing scroll jump
   const slug = targetId.replace(/^module-/, '').toLowerCase();
-  if (history.pushState) {
-    history.pushState(null, '', '#' + slug);
-  } else {
-    window.location.hash = '#' + slug;
+  if (updateHash) {
+    if (history.pushState) {
+      history.pushState(null, '', '#' + slug);
+    } else {
+      window.location.hash = '#' + slug;
+    }
   }
 
-  // Trigger data loads
-  if (targetId === 'module-dashboard' || targetId === 'module-agents') {
+  // Trigger targeted data loads for the active view
+  if (targetId === 'module-dashboard') {
     loadAgentsList();
-  }
-  if (targetId === 'module-dashboard' || targetId === 'module-recordings' || targetId === 'module-reports') {
     loadRecordings();
-  }
-  if (targetId === 'module-auth') {
+  } else if (targetId === 'module-agents') {
+    loadAgentsList();
+  } else if (targetId === 'module-recordings' || targetId === 'module-reports') {
+    loadRecordings();
+  } else if (targetId === 'module-pbx') {
+    loadPbxOverview();
+  } else if (targetId === 'module-auth') {
     checkSystemAuth();
   }
 }
 
 function refreshAdminDashboard() {
-  loadAgentsList();
-  loadRecordings();
-  checkSystemAuth();
-  showToast('Refreshing all PBX data...', 'info');
+  const activeSec = document.querySelector('.module-section.active');
+  const currentId = activeSec ? activeSec.id : 'module-dashboard';
+
+  if (currentId === 'module-dashboard') {
+    loadAgentsList();
+    loadRecordings();
+    showToast('Refreshed Dashboard overview data', 'info');
+  } else if (currentId === 'module-agents') {
+    loadAgentsList();
+    showToast('Refreshed Agents & Extensions list', 'info');
+  } else if (currentId === 'module-recordings' || currentId === 'module-reports') {
+    loadRecordings();
+    showToast('Refreshed Call Recordings & Activity', 'info');
+  } else if (currentId === 'module-pbx') {
+    loadPbxOverview();
+    showToast('Refreshed PBX Queues, IVRs & Inbound routes', 'info');
+  } else if (currentId === 'module-auth') {
+    checkSystemAuth();
+    showToast('Running System Auth Health Check...', 'info');
+  } else {
+    showToast('Data refreshed', 'info');
+  }
+}
+
+function toggleMobileSidebar(forceClose = false) {
+  const sidebar = document.querySelector('.app-sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+
+  if (forceClose || sidebar.classList.contains('show-mobile')) {
+    sidebar.classList.remove('show-mobile');
+    if (backdrop) backdrop.classList.remove('active');
+  } else {
+    sidebar.classList.add('show-mobile');
+    if (backdrop) backdrop.classList.add('active');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -94,36 +159,33 @@ document.addEventListener('DOMContentLoaded', () => {
     item.addEventListener('click', () => {
       const targetModule = item.getAttribute('data-module');
       if (targetModule) {
-        switchModule(targetModule);
+        switchModule(targetModule, true);
+        toggleMobileSidebar(true); // Auto close sidebar on mobile after selection
       }
     });
   });
 
-  // Handle URL Hash on Load
+  // Resolve initial active tab on page refresh
   const initialHash = window.location.hash.replace(/^#/, '').toLowerCase();
-  const hashModuleMap = {
-    'dashboard': 'module-dashboard',
-    'agents': 'module-agents',
-    'recordings': 'module-recordings',
-    'mapping': 'module-mapping',
-    'tester': 'module-tester',
-    'clicktocall': 'module-tester',
-    'reports': 'module-reports',
-    'logs': 'module-reports',
-    'auth': 'module-auth'
-  };
+  let savedTab = null;
+  try {
+    savedTab = localStorage.getItem('admin_active_tab');
+  } catch (e) {}
 
+  let resolvedModule = 'module-dashboard';
   if (initialHash && hashModuleMap[initialHash]) {
-    switchModule(hashModuleMap[initialHash]);
-  } else {
-    loadAgentsList();
-    loadRecordings();
+    resolvedModule = hashModuleMap[initialHash];
+  } else if (savedTab && document.getElementById(savedTab)) {
+    resolvedModule = savedTab;
   }
+
+  // Activate the resolved tab immediately
+  switchModule(resolvedModule, false);
 
   window.addEventListener('popstate', () => {
     const hash = window.location.hash.replace(/^#/, '').toLowerCase();
     if (hash && hashModuleMap[hash]) {
-      switchModule(hashModuleMap[hash]);
+      switchModule(hashModuleMap[hash], false);
     }
   });
 
@@ -268,6 +330,174 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (err) {
         showToast('Server error deactivating mapping', 'error');
+      }
+    });
+  }
+
+  // Create Queue Form
+  const createQueueForm = document.getElementById('createQueueForm');
+  if (createQueueForm) {
+    createQueueForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const selectedAgentIds = Array.from(document.querySelectorAll('.queue-agent-chk:checked')).map(chk => parseInt(chk.value));
+      const payload = {
+        name: document.getElementById('newQueueName').value.trim(),
+        display_name: document.getElementById('newQueueDisplayName').value.trim(),
+        strategy: document.getElementById('newQueueStrategy').value,
+        wait_seconds: parseInt(document.getElementById('newQueueWaitSec').value || 120),
+        agent_ids: selectedAgentIds
+      };
+
+      try {
+        const res = await fetch(getAdminApiUrl('pbx_queue'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Queue '${payload.name}' saved successfully!`, 'success');
+          closeCreateQueueModal();
+          createQueueForm.reset();
+          loadPbxOverview();
+        } else {
+          showToast(data.message || 'Failed to save queue', 'error');
+        }
+      } catch (err) {
+        showToast('Error saving queue', 'error');
+      }
+    });
+  }
+
+  // Create IVR Form
+  const createIvrForm = document.getElementById('createIvrForm');
+  if (createIvrForm) {
+    createIvrForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const options = [];
+      const d1 = document.getElementById('ivrOptDigit1').value.trim();
+      if (d1) options.push({ digit: d1, dest_type: document.getElementById('ivrOptType1').value, dest_value: document.getElementById('ivrOptValue1').value.trim() });
+
+      const d2 = document.getElementById('ivrOptDigit2').value.trim();
+      if (d2) options.push({ digit: d2, dest_type: document.getElementById('ivrOptType2').value, dest_value: document.getElementById('ivrOptValue2').value.trim() });
+
+      const d3 = document.getElementById('ivrOptDigit3').value.trim();
+      if (d3) options.push({ digit: d3, dest_type: document.getElementById('ivrOptType3').value, dest_value: document.getElementById('ivrOptValue3').value.trim() });
+
+      const payload = {
+        name: document.getElementById('newIvrName').value.trim(),
+        feature_exten: document.getElementById('newIvrExten').value.trim(),
+        greeting: document.getElementById('newIvrGreeting').value,
+        timeout_sec: parseInt(document.getElementById('newIvrTimeout').value || 8),
+        options: options
+      };
+
+      try {
+        const res = await fetch(getAdminApiUrl('pbx_ivr'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`IVR '${payload.name}' created successfully!`, 'success');
+          closeCreateIvrModal();
+          createIvrForm.reset();
+          loadPbxOverview();
+        } else {
+          showToast(data.message || 'Failed to create IVR', 'error');
+        }
+      } catch (err) {
+        showToast('Error creating IVR', 'error');
+      }
+    });
+  }
+
+  // Upload Greeting Form
+  const uploadGreetingForm = document.getElementById('uploadGreetingForm');
+  if (uploadGreetingForm) {
+    uploadGreetingForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById('greetingAudioFile');
+      const slugInput = document.getElementById('greetingSlugName');
+
+      if (!fileInput.files || fileInput.files.length === 0) {
+        showToast('Please select an audio file', 'error');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      if (slugInput.value.trim()) {
+        formData.append('name', slugInput.value.trim());
+      }
+
+      try {
+        const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
+        const uploadUrl = isLaravel ? '/api/telephony/pbx_ivr_greeting' : 'api.php?action=pbx_ivr_greeting';
+
+        const headers = {};
+        const csrf = getCsrfToken();
+        if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+
+        const res = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: headers,
+          body: formData
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showToast(`Greeting audio '${data.slug || ''}' uploaded successfully!`, 'success');
+          closeUploadGreetingModal();
+          uploadGreetingForm.reset();
+          loadPbxOverview();
+        } else {
+          showToast(data.message || 'Upload failed', 'error');
+        }
+      } catch (err) {
+        showToast('Error uploading greeting', 'error');
+      }
+    });
+  }
+
+  // Create Inbound Route Form
+  const createInboundForm = document.getElementById('createInboundForm');
+  if (createInboundForm) {
+    createInboundForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        did: document.getElementById('newInboundDid').value.trim(),
+        dest_type: document.getElementById('newInboundType').value,
+        dest_value: document.getElementById('newInboundValue').value.trim()
+      };
+
+      try {
+        const res = await fetch(getAdminApiUrl('pbx_inbound'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Inbound route saved!`, 'success');
+          closeCreateInboundModal();
+          createInboundForm.reset();
+          loadPbxOverview();
+        } else {
+          showToast(data.message || 'Failed to save inbound route', 'error');
+        }
+      } catch (err) {
+        showToast('Error saving inbound route', 'error');
       }
     });
   }
@@ -556,6 +786,13 @@ async function triggerCallCustomer() {
 
   const reqId = document.getElementById('callCustReqId').value.trim();
   const respElem = document.getElementById('callTesterResponse');
+
+  if (window.telephonySimulator && window.telephonySimulator.isSimulator()) {
+    respElem.textContent = `[SIMULATOR ACTIVE] Initiating Outbound Call to Customer via Extension 1001...\nRequest ID: ${reqId}\nStatus: ORIGINATING -> CONNECTED`;
+    window.telephonySimulator.simulateOutboundCall('customer', 'BK202600123');
+    return;
+  }
+
   respElem.textContent = 'Triggering POST call/customer...';
 
   try {
@@ -578,6 +815,9 @@ async function triggerCallCustomer() {
       pollCallStatus(reqId);
     } else {
       showToast(data.message || 'Call failed', 'error');
+      if (data.error_code === 'AGENT_NOT_REGISTERED' || (data.message && data.message.includes('not registered'))) {
+        respElem.textContent += '\n\n💡 TIP: SIP 1001 softphone is offline. Click "Test via Browser Simulator" in top header or quick action to test calling without Zoiper!';
+      }
     }
   } catch (err) {
     respElem.textContent = 'Network / Server error triggering call.';
@@ -597,6 +837,13 @@ async function triggerCallMaid() {
 
   const reqId = document.getElementById('callMaidReqId').value.trim();
   const respElem = document.getElementById('callTesterResponse');
+
+  if (window.telephonySimulator && window.telephonySimulator.isSimulator()) {
+    respElem.textContent = `[SIMULATOR ACTIVE] Initiating Outbound Call to Maid via Extension 1001...\nRequest ID: ${reqId}\nStatus: ORIGINATING -> CONNECTED`;
+    window.telephonySimulator.simulateOutboundCall('maid', 'BK202600123');
+    return;
+  }
+
   respElem.textContent = 'Triggering POST call/maid...';
 
   try {
@@ -619,6 +866,9 @@ async function triggerCallMaid() {
       pollCallStatus(reqId);
     } else {
       showToast(data.message || 'Call Maid failed', 'error');
+      if (data.error_code === 'AGENT_NOT_REGISTERED' || (data.message && data.message.includes('not registered'))) {
+        respElem.textContent += '\n\n💡 TIP: SIP 1001 softphone is offline. Click "Test via Browser Simulator" in top header or quick action to test calling without Zoiper!';
+      }
     }
   } catch (err) {
     respElem.textContent = 'Network / Server error triggering call.';
@@ -665,7 +915,356 @@ async function checkSystemAuth() {
   }
 }
 
-// Modal controls
+// ── PBX Overview & Management ──────────────────────────────────────────────────
+let pbxCache = null;
+
+async function loadPbxOverview() {
+  const queuesContainer = document.getElementById('pbxQueuesContainer');
+  const ivrsContainer = document.getElementById('pbxIvrsContainer');
+  const greetingsContainer = document.getElementById('pbxGreetingsContainer');
+  const inboundContainer = document.getElementById('pbxInboundContainer');
+
+  if (queuesContainer) queuesContainer.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-muted);"><div class="spinner" style="margin:0 auto 10px;"></div>Loading Queues...</div>';
+  if (ivrsContainer) ivrsContainer.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-muted);"><div class="spinner" style="margin:0 auto 10px;"></div>Loading IVRs...</div>';
+
+  try {
+    const res = await fetch(getAdminApiUrl('pbx'));
+    const data = await res.json();
+    pbxCache = data;
+
+    if (data.success) {
+      const queues = data.queues || [];
+      const ivrs = data.ivrs || [];
+      const customGreetings = data.custom_greetings || [];
+      const stockGreetings = data.greetings || [];
+      const inbounds = data.inbound_routes || [];
+
+      // Update Top Stats
+      const elQ = document.getElementById('statPbxQueues');
+      const elI = document.getElementById('statPbxIvrs');
+      const elG = document.getElementById('statPbxGreetings');
+      const elR = document.getElementById('statPbxInbound');
+
+      if (elQ) elQ.textContent = queues.length;
+      if (elI) elI.textContent = ivrs.length;
+      if (elG) elG.textContent = stockGreetings.length + customGreetings.length;
+      if (elR) elR.textContent = inbounds.length;
+
+      renderPbxQueues(queues);
+      renderPbxIvrs(ivrs);
+      renderPbxGreetings(stockGreetings, customGreetings);
+      renderPbxInbounds(inbounds);
+    } else {
+      showToast('Failed to load PBX overview', 'error');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Network error fetching PBX details', 'error');
+  }
+}
+
+function renderPbxQueues(queues) {
+  const container = document.getElementById('pbxQueuesContainer');
+  if (!container) return;
+
+  if (queues.length === 0) {
+    container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted);"><i class="fa-solid fa-inbox" style="font-size:24px; margin-bottom:8px; display:block; opacity:0.5;"></i>No call queues configured.</div>';
+    return;
+  }
+
+  let html = `
+    <div class="table-container">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Queue Name</th>
+            <th>Display Label</th>
+            <th>Strategy</th>
+            <th>Timeout</th>
+            <th>Assigned Agents</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  queues.forEach(q => {
+    const agentBadges = (q.agents || []).map(a => 
+      `<span class="badge badge-cyan" style="margin:2px;"><i class="fa-solid fa-user" style="font-size:9px;"></i> ${escapeHtml(a.agent_code || a.sip_peer)} (${escapeHtml(a.full_name)})</span>`
+    ).join('') || '<span style="color:var(--text-dim); font-size:12px;">No assigned agents</span>';
+
+    const isDefault = (q.name === 'root-support');
+
+    html += `
+      <tr>
+        <td><strong style="color:var(--text-bright);"><span class="badge badge-purple">${escapeHtml(q.name)}</span></strong></td>
+        <td style="font-weight:500; color:var(--text-bright);">${escapeHtml(q.display_name || q.name)}</td>
+        <td><span class="token-code">${escapeHtml(q.strategy || 'rrmemory')}</span></td>
+        <td><span style="font-weight:600; color:var(--text-main);">${escapeHtml(q.wait_seconds || 120)}s</span></td>
+        <td>${agentBadges}</td>
+        <td style="text-align:right;">
+          ${isDefault 
+            ? '<span class="badge badge-emerald" title="System default queue cannot be deleted"><i class="fa-solid fa-lock"></i> Default</span>' 
+            : `<button class="btn btn-sm btn-danger" onclick="deletePbxQueue(${q.id})" title="Delete Queue"><i class="fa-solid fa-trash-can"></i> Delete</button>`
+          }
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+}
+
+function renderPbxIvrs(ivrs) {
+  const container = document.getElementById('pbxIvrsContainer');
+  if (!container) return;
+
+  if (ivrs.length === 0) {
+    container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted);"><i class="fa-solid fa-sitemap" style="font-size:24px; margin-bottom:8px; display:block; opacity:0.5;"></i>No IVR menus configured.</div>';
+    return;
+  }
+
+  let html = `
+    <div class="table-container">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>IVR Name</th>
+            <th>Exten</th>
+            <th>Greeting Audio</th>
+            <th>DTMF Keypress Routing Options</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  ivrs.forEach(ivr => {
+    const optionsList = (ivr.options || []).map(opt => {
+      let bClass = 'badge-emerald';
+      if (opt.dest_type === 'queue') bClass = 'badge-purple';
+      if (opt.dest_type === 'hangup') bClass = 'badge-rose';
+
+      return `<span class="badge ${bClass}" style="margin:2px;"><b>[${escapeHtml(opt.digit)}]</b> &rarr; ${escapeHtml(opt.dest_type)}: ${escapeHtml(opt.dest_value || '')}</span>`;
+    }).join(' ') || '<span style="color:var(--text-dim); font-size:12px;">No options</span>';
+
+    html += `
+      <tr>
+        <td><strong style="color:var(--text-bright);">${escapeHtml(ivr.name)}</strong></td>
+        <td><span class="token-code"><i class="fa-solid fa-hashtag" style="font-size:10px;"></i> ${escapeHtml(ivr.feature_exten || '')}</span></td>
+        <td><span class="token-code"><i class="fa-solid fa-volume-high" style="font-size:10px; color:var(--accent-cyan);"></i> ${escapeHtml(ivr.greeting || 'hello')}</span></td>
+        <td>${optionsList}</td>
+        <td style="text-align:right;">
+          <button class="btn btn-sm btn-danger" onclick="deletePbxIvr(${ivr.id})" title="Delete IVR Menu">
+            <i class="fa-solid fa-trash-can"></i> Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+}
+
+function renderPbxGreetings(greetings, customGreetings) {
+  const container = document.getElementById('pbxGreetingsContainer');
+  if (!container) return;
+
+  // Populate IVR dropdown with greetings if available
+  const ivrGreetingSelect = document.getElementById('newIvrGreeting');
+  if (ivrGreetingSelect && Array.isArray(greetings)) {
+    ivrGreetingSelect.innerHTML = greetings.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+  }
+
+  let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">';
+
+  if (customGreetings && customGreetings.length > 0) {
+    customGreetings.forEach(cg => {
+      const audioUrl = `http://117.217.126.149:880/roottech/index.php?r=pbx/ivr/greeting/play&name=${encodeURIComponent(cg.slug)}&token=11af5c25470d1306970a9175df8a1213da7435960305169f`;
+
+      html += `
+        <div class="glass-panel" style="padding: 12px 16px; margin:0; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border-glass);">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:32px; height:32px; border-radius:var(--radius-sm); background:var(--badge-cyan-bg); display:flex; align-items:center; justify-content:center; color:var(--accent-cyan);">
+              <i class="fa-solid fa-file-audio"></i>
+            </div>
+            <div>
+              <div style="font-weight:600; color:var(--text-bright); font-size:13px;">${escapeHtml(cg.label || cg.slug)}</div>
+              <div style="font-size:11px; color:var(--text-dim);">${cg.bytes || 0} bytes • WAV (8kHz)</div>
+            </div>
+          </div>
+          <a href="${audioUrl}" target="_blank" class="btn btn-sm btn-secondary" style="display:inline-flex; align-items:center; gap:4px; text-decoration:none;">
+            <i class="fa-solid fa-play" style="color:var(--accent-emerald);"></i> Play
+          </a>
+        </div>
+      `;
+    });
+  } else {
+    html += `
+      <div style="grid-column: 1 / -1; padding: 16px; background: var(--bg-card-hover); border-radius: var(--radius-md); border: 1px solid var(--border-glass); color: var(--text-muted); font-size: 13px;">
+        <i class="fa-solid fa-circle-info" style="color: var(--accent-cyan); margin-right: 6px;"></i>
+        Stock Asterisk prompts active (<code>hello</code>, <code>hello-world</code>, <code>one-moment-please</code>, <code>demo-thanks</code>, <code>goodbye</code>). Use <b>Upload Greeting Audio</b> to add custom business prompts.
+      </div>
+    `;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderPbxInbounds(routes) {
+  const container = document.getElementById('pbxInboundContainer');
+  if (!container) return;
+
+  if (routes.length === 0) {
+    container.innerHTML = `
+      <div style="padding:16px 20px; background:var(--bg-card-hover); border-radius:var(--radius-md); border:1px solid var(--border-glass); color:var(--text-muted); font-size:13px; display:flex; align-items:center; gap:10px;">
+        <i class="fa-solid fa-circle-check" style="color:var(--accent-emerald); font-size:16px;"></i>
+        <span>Default Inbound Flow active: Unmapped PSTN callers automatically ring the <b><span class="badge badge-purple">root-support</span></b> queue.</span>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div class="table-container">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>DID Phone Number</th>
+            <th>Destination Type</th>
+            <th>Target Destination</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  routes.forEach(r => {
+    html += `
+      <tr>
+        <td><strong><span class="token-code">${escapeHtml(r.did || 'Default / All')}</span></strong></td>
+        <td><span class="badge badge-cyan">${escapeHtml(r.dest_type)}</span></td>
+        <td><span class="badge badge-purple">${escapeHtml(r.dest_value)}</span></td>
+        <td style="text-align:right;">
+          <button class="btn btn-sm btn-danger" onclick="deletePbxInbound(${r.id})" title="Delete Inbound Route">
+            <i class="fa-solid fa-trash-can"></i> Delete
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+  container.innerHTML = html;
+}
+
+async function applyPbxDialplan() {
+  const btn = document.getElementById('btnApplyPbx');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Applying Dialplan...';
+  }
+
+  try {
+    const res = await fetch(getAdminApiUrl('pbx_apply'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken()
+      },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showToast('Asterisk Dialplan successfully regenerated & reloaded!', 'success');
+      loadPbxOverview();
+    } else {
+      showToast(data.message || 'Failed to apply dialplan', 'error');
+    }
+  } catch (err) {
+    showToast('Network error while applying dialplan', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Apply & Reload Asterisk Dialplan';
+    }
+  }
+}
+
+async function deletePbxQueue(id) {
+  if (!confirm('Are you sure you want to delete this queue?')) return;
+  try {
+    const res = await fetch(getAdminApiUrl('pbx_queue_delete'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken()
+      },
+      body: JSON.stringify({ id: id })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Queue deleted successfully', 'success');
+      loadPbxOverview();
+    } else {
+      showToast(data.message || 'Failed to delete queue', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+}
+
+async function deletePbxIvr(id) {
+  if (!confirm('Are you sure you want to delete this IVR menu?')) return;
+  try {
+    const res = await fetch(getAdminApiUrl('pbx_ivr_delete'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken()
+      },
+      body: JSON.stringify({ id: id })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('IVR menu deleted successfully', 'success');
+      loadPbxOverview();
+    } else {
+      showToast(data.message || 'Failed to delete IVR menu', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+}
+
+async function deletePbxInbound(id) {
+  if (!confirm('Are you sure you want to delete this Inbound DID route?')) return;
+  try {
+    const res = await fetch(getAdminApiUrl('pbx_inbound_delete'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken()
+      },
+      body: JSON.stringify({ id: id })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Inbound route removed successfully', 'success');
+      loadPbxOverview();
+    } else {
+      showToast(data.message || 'Failed to remove route', 'error');
+    }
+  } catch (err) {
+    showToast('Network error', 'error');
+  }
+}
+
+// ── Modal Controls ─────────────────────────────────────────────────────────────
 function openCreateAgentModal() {
   const m = document.getElementById('createAgentModal');
   if (m) {
@@ -676,6 +1275,79 @@ function openCreateAgentModal() {
 
 function closeCreateAgentModal() {
   const m = document.getElementById('createAgentModal');
+  if (m) {
+    m.classList.remove('open');
+    m.style.display = 'none';
+  }
+}
+
+function openCreateQueueModal() {
+  const m = document.getElementById('createQueueModal');
+  const chkContainer = document.getElementById('queueAgentsCheckboxContainer');
+  if (chkContainer && pbxCache && pbxCache.agents) {
+    chkContainer.innerHTML = pbxCache.agents.map(ag => `
+      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--text-bright); cursor: pointer;">
+        <input type="checkbox" class="queue-agent-chk" value="${ag.id}" checked>
+        <span><b>${escapeHtml(ag.agent_code || ag.sip_peer)}</b> - ${escapeHtml(ag.full_name)}</span>
+      </label>
+    `).join('');
+  }
+  if (m) {
+    m.classList.add('open');
+    m.style.display = 'flex';
+  }
+}
+
+function closeCreateQueueModal() {
+  const m = document.getElementById('createQueueModal');
+  if (m) {
+    m.classList.remove('open');
+    m.style.display = 'none';
+  }
+}
+
+function openCreateIvrModal() {
+  const m = document.getElementById('createIvrModal');
+  if (m) {
+    m.classList.add('open');
+    m.style.display = 'flex';
+  }
+}
+
+function closeCreateIvrModal() {
+  const m = document.getElementById('createIvrModal');
+  if (m) {
+    m.classList.remove('open');
+    m.style.display = 'none';
+  }
+}
+
+function openUploadGreetingModal() {
+  const m = document.getElementById('uploadGreetingModal');
+  if (m) {
+    m.classList.add('open');
+    m.style.display = 'flex';
+  }
+}
+
+function closeUploadGreetingModal() {
+  const m = document.getElementById('uploadGreetingModal');
+  if (m) {
+    m.classList.remove('open');
+    m.style.display = 'none';
+  }
+}
+
+function openCreateInboundModal() {
+  const m = document.getElementById('createInboundModal');
+  if (m) {
+    m.classList.add('open');
+    m.style.display = 'flex';
+  }
+}
+
+function closeCreateInboundModal() {
+  const m = document.getElementById('createInboundModal');
   if (m) {
     m.classList.remove('open');
     m.style.display = 'none';
