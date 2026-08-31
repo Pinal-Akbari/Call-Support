@@ -72,7 +72,12 @@ class PermissionApiController extends Controller
      */
     public function store(Request $request, ?string $agentCode = null): JsonResponse
     {
-        $code = trim((string) ($agentCode ?: $request->input('agent_code', '')));
+        $body = $request->json()->all() ?: $request->all();
+        if (empty($body) && !empty($request->getContent())) {
+            $body = json_decode($request->getContent(), true) ?: [];
+        }
+
+        $code = trim((string) ($agentCode ?: ($body['agent_code'] ?? $request->input('agent_code', ''))));
         if (empty($code)) {
             return response()->json([
                 'success' => false,
@@ -80,7 +85,7 @@ class PermissionApiController extends Controller
             ], 422);
         }
 
-        $rawModules = $request->input('modules', $request->input('allowed_modules', []));
+        $rawModules = $body['modules'] ?? ($body['allowed_modules'] ?? $request->input('modules', $request->input('allowed_modules', [])));
         if (is_string($rawModules)) {
             $rawModules = json_decode($rawModules, true) ?: explode(',', $rawModules);
         }
