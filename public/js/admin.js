@@ -583,12 +583,16 @@ async function loadAgentsList() {
             ? agentPermRecord.allowed_modules
             : (ag.agent_code === 'admin' ? ['dashboard', 'call', 'agents', 'mapping', 'recordings', 'reports'] : ['dashboard', 'call', 'agents', 'recordings']);
 
-          let permBadgesHtml = '<div style="display:flex; flex-wrap:wrap; gap:4px; max-width:220px;">';
+          let permBadgesHtml = '<div style="display:flex; flex-wrap:wrap; gap:4px; max-width:240px;">';
+          if (allowedList.includes('dashboard')) permBadgesHtml += `<span class="badge badge-purple" style="font-size:10px; padding:2px 6px;">Dashboard</span>`;
           if (allowedList.includes('call')) permBadgesHtml += `<span class="badge badge-emerald" style="font-size:10px; padding:2px 6px;">Call</span>`;
-          if (allowedList.includes('recordings')) permBadgesHtml += `<span class="badge badge-cyan" style="font-size:10px; padding:2px 6px;">Recordings</span>`;
-          if (allowedList.includes('agents')) permBadgesHtml += `<span class="badge badge-purple" style="font-size:10px; padding:2px 6px;">Directory</span>`;
+          if (allowedList.includes('agents')) permBadgesHtml += `<span class="badge badge-cyan" style="font-size:10px; padding:2px 6px;">Directory</span>`;
           if (allowedList.includes('mapping')) permBadgesHtml += `<span class="badge badge-amber" style="font-size:10px; padding:2px 6px;">Masking</span>`;
-          if (allowedList.includes('reports')) permBadgesHtml += `<span class="badge badge-rose" style="font-size:10px; padding:2px 6px;">Reports</span>`;
+          if (allowedList.includes('recordings')) permBadgesHtml += `<span class="badge badge-rose" style="font-size:10px; padding:2px 6px;">Recordings</span>`;
+          if (allowedList.includes('reports')) permBadgesHtml += `<span class="badge badge-purple" style="font-size:10px; padding:2px 6px;">Reports</span>`;
+          if (allowedList.length === 0 || permBadgesHtml === '<div style="display:flex; flex-wrap:wrap; gap:4px; max-width:240px;">') {
+            permBadgesHtml += `<span class="badge" style="background:var(--bg-card-hover); color:var(--text-dim); font-size:10px; padding:2px 6px;">No Permissions</span>`;
+          }
           permBadgesHtml += '</div>';
 
           fullHtml += `
