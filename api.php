@@ -486,4 +486,128 @@ if ($action === 'save_note') {
     exit;
 }
 
+// HELPER TO GET PDO CONNECTION TO root_cms DATABASE
+function getDbConnection() {
+    static $pdo = null;
+    if ($pdo === null) {
+        try {
+            $pdo = new PDO('mysql:host=127.0.0.1;port=3306;dbname=root_cms;charset=utf8mb4', 'root', '', [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            ]);
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+    return $pdo;
+}
+
+// 24. GET AGENT PERMISSIONS
+if ($action === 'get_permissions') {
+    $targetCode = trim($_GET['agent_code'] ?? ($_POST['agent_code'] ?? ''));
+    $allModules = [
+        'dashboard'  => 'Dashboard Overview',
+        'call'       => 'Click-to-Call',
+        'agents'     => 'Agents Directory',
+        'mapping'    => 'Universal DID Masking',
+        'recordings' => 'Call Recordings',
+        'reports'    => 'API Reports & Logs',
+    ];
+    $defaultModules = ['dashboard', 'call', 'agents', 'recordings'];
+
+    if (strtolower($targetCode) === 'admin') {
+        echo json_encode([
+            'success'         => true,
+            'agent_code'      => $targetCode,
+            'allowed_modules' => array_keys($allModules),
+            'all_modules'     => $allModules,
+        ]);
+        exit;
+    }
+
+    $modules = $defaultModules;
+    $db = getDbConnection();
+    if ($db) {
+        $stmt = $db->prepare('SELECT allowed_modules FROM agent_permissions WHERE agent_code = ? LIMIT 1');
+        $stmt->execute([$targetCode]);
+        $row = $stmt->fetch();
+        if ($row && !empty($row['allowed_modules'])) {
+            $decoded = json_decode($row['allowed_modules'], true);
+            if (is_array($decoded)) {
+                $modules = $decoded;
+            }
+        }
+    }
+
+    echo json_encode([
+        'success'         => true,
+        'agent_code'      => $targetCode,
+        'allowed_modules' => $modules,
+        'all_modules'     => $allModules,
+    ]);
+    exit;
+}
+
+// 25. SAVE AGENT PERMISSIONS
+if ($action === 'save_permissions') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $targetCode = trim($input['agent_code'] ?? '');
+    $modules = (array) ($input['modules'] ?? []);
+
+    if (empty($targetCode)) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Agent code is required.']);
+        exit;
+    }
+
+    $uniqueModules = array_values(array_unique($modules));
+    $db = getDbConnection();
+    if ($db) {
+        $json = json_encode($uniqueModules);
+        $stmt = $db->prepare('INSERT INTO agent_permissions (agent_code, allowed_modules, updated_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE allowed_modules = VALUES(allowed_modules), updated_at = NOW()');
+        $stmt->execute([$targetCode, $json]);
+    }
+
+    echo json_encode([
+        'success'         => true,
+        'message'         => "Permissions updated successfully for Agent '{$targetCode}'!",
+        'agent_code'      => $targetCode,
+        'allowed_modules' => $uniqueModules,
+    ]);
+    exit;
+}
+
+// 26. ALL AGENTS PERMISSIONS
+if ($action === 'all_agents_permissions') {
+    $allModules = [
+        'dashboard'  => 'Dashboard Overview',
+        'call'       => 'Click-to-Call',
+        'agents'     => 'Agents Directory',
+        'mapping'    => 'Universal DID Masking',
+        'recordings' => 'Call Recordings',
+        'reports'    => 'API Reports & Logs',
+    ];
+    $defaultModules = ['dashboard', 'call', 'agents', 'recordings'];
+
+    $permissions = [];
+    $db = getDbConnection();
+    if ($db) {
+        $rows = $db->query('SELECT agent_code, allowed_modules FROM agent_permissions')->fetchAll();
+        foreach ($rows as $r) {
+            $permissions[$r['agent_code']] = [
+                'agent_code' => $r['agent_code'],
+                'allowed_modules' => json_decode($r['allowed_modules'], true) ?: $defaultModules
+            ];
+        }
+    }
+
+    echo json_encode([
+        'success'         => true,
+        'permissions'     => $permissions,
+        'all_modules'     => $allModules,
+        'default_modules' => $defaultModules,
+    ]);
+    exit;
+}
+
 echo json_encode(['success' => false, 'message' => 'Invalid action specified.']);
