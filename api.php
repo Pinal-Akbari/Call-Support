@@ -73,13 +73,22 @@ if ($action === 'login') {
     $response = callRemoteApi($loginUrl, 'POST', ['agent_code' => $agentCode, 'password' => $password]);
     
     if (isset($response['success']) && $response['success'] === true) {
+        $resolvedCode = $response['agent_code'] ?? $agentCode;
+        $isAdmin = strtolower($resolvedCode) === 'admin'
+                || (!empty($response['agent']['role']) && in_array(strtolower($response['agent']['role']), ['admin', 'superadmin']));
+
         $_SESSION['agent'] = [
             'session_token' => $response['session_token'] ?? DEFAULT_API_TOKEN,
             'api_token' => DEFAULT_API_TOKEN,
+            'agent_code' => $resolvedCode,
             'expires_at' => $response['expires_at'] ?? '',
             'info' => $response['agent'] ?? [],
-            'queue' => $response['queue'] ?? ''
+            'queue' => $response['queue'] ?? '',
+            'is_admin' => $isAdmin
         ];
+
+        $response['is_admin'] = $isAdmin;
+        $response['redirect'] = $isAdmin ? 'admin.php' : 'dashboard.php';
     }
     
     echo json_encode($response);
@@ -197,8 +206,69 @@ if ($action === 'recordings') {
     
     $url = BASE_API_URL . "?r=recordings&from={$from}&to={$to}&q={$q}&page={$page}&limit={$limit}";
     $response = callRemoteApi($url, 'GET');
+
+    $agentCode = strtolower(trim($_SESSION['agent']['agent_code'] ?? ''));
+    $isAdmin   = !empty($_SESSION['agent']['is_admin']) || $agentCode === 'admin';
+
+    if (!$isAdmin && !empty($response['success']) && is_array($response['rows'])) {
+        $response['rows'] = array_values(array_filter($response['rows'], function ($r) use ($agentCode) {
+            $caller = strtolower((string) ($r['caller_number'] ?? ''));
+            $dest   = strtolower((string) ($r['destination_number'] ?? ''));
+            $agCode = strtolower((string) ($r['agent_code'] ?? ''));
+            $user   = strtolower((string) ($r['user'] ?? ''));
+            $peer   = strtolower((string) ($r['sip_peer'] ?? ''));
+
+            return $caller === $agentCode 
+                || $dest === $agentCode 
+                || $agCode === $agentCode 
+                || $user === $agentCode 
+                || $peer === $agentCode
+                || str_ends_with($caller, $agentCode) 
+                || str_ends_with($dest, $agentCode);
+        }));
+        $response['total'] = count($response['rows']);
+    }
+
     echo json_encode($response);
     exit;
+}
+
+// 11.1 STREAM AUDIO RECORDING
+if ($action === 'stream_audio') {
+    $kind = $_GET['kind'] ?? 'recording';
+    $id = $_GET['id'] ?? '';
+    if (empty($id)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing recording ID']);
+        exit;
+    }
+    
+    $url = BASE_API_URL . '?r=recording/play&kind=' . urlencode($kind) . '&id=' . urlencode($id);
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . DEFAULT_API_TOKEN
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    $audioData = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'audio/wav';
+    curl_close($ch);
+    
+    if ($httpCode === 200 && $audioData) {
+        header('Content-Type: ' . $contentType);
+        header('Content-Disposition: inline; filename="recording_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $id) . '.wav"');
+        header('Accept-Ranges: bytes');
+        header('Content-Length: ' . strlen($audioData));
+        echo $audioData;
+        exit;
+    } else {
+        http_response_code($httpCode ?: 404);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Recording audio not found']);
+        exit;
+    }
 }
 
 // 12. AUTH CHECK

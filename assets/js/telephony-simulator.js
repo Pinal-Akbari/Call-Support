@@ -397,7 +397,8 @@ class TelephonySimulator {
     const countEl = document.getElementById('sim360CallCount');
 
     try {
-      const res = await fetch(`api.php?action=caller_history&phone=${encodeURIComponent(phone)}`);
+      const url = typeof getApiUrl === 'function' ? getApiUrl('caller_history', `phone=${encodeURIComponent(phone)}`) : `api.php?action=caller_history&phone=${encodeURIComponent(phone)}`;
+      const res = await fetch(url);
       const data = await res.json();
 
       if (data && data.success) {
@@ -471,9 +472,11 @@ class TelephonySimulator {
     const bookingId = (this.activeCall && this.activeCall.bookingId) || 'BK-2026-9812';
 
     try {
-      const res = await fetch('api.php?action=save_note', {
+      const url = typeof getApiUrl === 'function' ? getApiUrl('save_note') : 'api.php?action=save_note';
+      const headers = typeof getApiHeaders === 'function' ? getApiHeaders() : { 'Content-Type': 'application/json' };
+      const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({
           phone: phone,
           booking_id: bookingId,

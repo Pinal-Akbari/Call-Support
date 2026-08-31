@@ -505,6 +505,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Load Agents List & Overview Table
+let cachedAgentPermissions = {};
+
 async function loadAgentsList() {
   const tbody = document.getElementById('agentsTableBody');
   const overviewTbody = document.getElementById('overviewAgentsTableBody');
@@ -512,8 +514,8 @@ async function loadAgentsList() {
   if (tbody) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">
-          <div class="spinner" style="margin: 0 auto 10px;"></div> Loading Agents...
+        <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">
+          <div class="spinner" style="margin: 0 auto 10px;"></div> Loading Agents & Permissions...
         </td>
       </tr>
     `;
@@ -530,8 +532,20 @@ async function loadAgentsList() {
   }
 
   try {
-    const res = await fetch(getAdminApiUrl('agent_list'));
-    const data = await res.json();
+    // Parallel fetch agents and their permissions
+    const [agentsRes, permsRes] = await Promise.all([
+      fetch(getAdminApiUrl('agent_list')),
+      fetch(getAdminApiUrl('all_agents_permissions'))
+    ]);
+
+    const data = await agentsRes.json();
+    let permsData = {};
+    try {
+      permsData = await permsRes.json();
+      if (permsData.success && permsData.permissions) {
+        cachedAgentPermissions = permsData.permissions;
+      }
+    } catch (pe) {}
 
     if (data.success && Array.isArray(data.agents)) {
       let activeCount = 0;
@@ -546,7 +560,7 @@ async function loadAgentsList() {
       let overviewHtml = '';
 
       if (data.agents.length === 0) {
-        fullHtml = `<tr><td colspan="7" style="text-align:center; padding: 20px; color:var(--text-muted);">No agents found.</td></tr>`;
+        fullHtml = `<tr><td colspan="8" style="text-align:center; padding: 20px; color:var(--text-muted);">No agents found.</td></tr>`;
         overviewHtml = `<tr><td colspan="5" style="text-align:center; padding: 16px; color:var(--text-muted);">No agents found.</td></tr>`;
       } else {
         data.agents.forEach(ag => {
@@ -563,6 +577,20 @@ async function loadAgentsList() {
             ? '<span class="badge badge-emerald"><i class="fa-solid fa-check" style="font-size:8px;"></i> Registered</span>' 
             : '<span class="badge" style="background:var(--bg-card-hover); color:var(--text-dim); border:1px solid var(--border-glass);">Unregistered</span>';
 
+          // Compute Allowed Modules Badges
+          const agentPermRecord = cachedAgentPermissions[ag.agent_code];
+          const allowedList = agentPermRecord && Array.isArray(agentPermRecord.allowed_modules)
+            ? agentPermRecord.allowed_modules
+            : (ag.agent_code === 'admin' ? ['dashboard', 'call', 'agents', 'mapping', 'recordings', 'reports'] : ['dashboard', 'call', 'agents', 'recordings']);
+
+          let permBadgesHtml = '<div style="display:flex; flex-wrap:wrap; gap:4px; max-width:220px;">';
+          if (allowedList.includes('call')) permBadgesHtml += `<span class="badge badge-emerald" style="font-size:10px; padding:2px 6px;">Call</span>`;
+          if (allowedList.includes('recordings')) permBadgesHtml += `<span class="badge badge-cyan" style="font-size:10px; padding:2px 6px;">Recordings</span>`;
+          if (allowedList.includes('agents')) permBadgesHtml += `<span class="badge badge-purple" style="font-size:10px; padding:2px 6px;">Directory</span>`;
+          if (allowedList.includes('mapping')) permBadgesHtml += `<span class="badge badge-amber" style="font-size:10px; padding:2px 6px;">Masking</span>`;
+          if (allowedList.includes('reports')) permBadgesHtml += `<span class="badge badge-rose" style="font-size:10px; padding:2px 6px;">Reports</span>`;
+          permBadgesHtml += '</div>';
+
           fullHtml += `
             <tr>
               <td><strong style="color:var(--primary); font-weight:600;">${escapeHtml(ag.agent_code)}</strong></td>
@@ -571,8 +599,12 @@ async function loadAgentsList() {
               <td><span class="token-code">${escapeHtml(ag.sip_secret || 'N/A')}</span></td>
               <td>${statusBadge}</td>
               <td>${regBadge}</td>
-              <td>
-                <button type="button" class="btn btn-danger btn-sm" onclick="deleteAgent(${ag.id}, '${escapeHtml(ag.agent_code)}')" title="Delete Agent">
+              <td>${permBadgesHtml}</td>
+              <td style="white-space:nowrap;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="openAgentPermissionsModal('${escapeHtml(ag.agent_code)}', '${escapeHtml(ag.full_name)}')" title="Set Allowed Modules & Permissions" style="margin-right: 6px; padding: 4px 8px; font-size: 11px;">
+                  <i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i> Permissions
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteAgent(${ag.id}, '${escapeHtml(ag.agent_code)}')" title="Delete Agent" style="padding: 4px 8px; font-size: 11px;">
                   <i class="fa-solid fa-trash-can"></i>
                 </button>
               </td>
@@ -589,7 +621,10 @@ async function loadAgentsList() {
               <td>${statusBadge}</td>
               <td>${regBadge}</td>
               <td>
-                <button type="button" class="btn btn-danger btn-sm" onclick="deleteAgent(${ag.id}, '${escapeHtml(ag.agent_code)}')" title="Delete Agent">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="openAgentPermissionsModal('${escapeHtml(ag.agent_code)}', '${escapeHtml(ag.full_name)}')" title="Permissions" style="margin-right:4px; padding:3px 7px; font-size:11px;">
+                  <i class="fa-solid fa-shield-halved"></i>
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteAgent(${ag.id}, '${escapeHtml(ag.agent_code)}')" title="Delete Agent" style="padding:3px 7px; font-size:11px;">
                   <i class="fa-solid fa-trash-can"></i>
                 </button>
               </td>
@@ -603,15 +638,144 @@ async function loadAgentsList() {
       if (overviewTbody) overviewTbody.innerHTML = overviewHtml;
 
     } else {
-      const errorMsg = `<tr><td colspan="7" style="text-align:center; padding: 20px; color:var(--accent-rose);">Failed to load agents: ${escapeHtml(data.message || 'Error')}</td></tr>`;
+      const errorMsg = `<tr><td colspan="8" style="text-align:center; padding: 20px; color:var(--accent-rose);">Failed to load agents: ${escapeHtml(data.message || 'Error')}</td></tr>`;
       if (tbody) tbody.innerHTML = errorMsg;
       if (overviewTbody) overviewTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 16px; color:var(--accent-rose);">Error loading agents</td></tr>`;
     }
   } catch (err) {
     console.error('Agents list error:', err);
-    const connError = `<tr><td colspan="7" style="text-align:center; padding: 20px; color:var(--accent-rose);">Server connection error.</td></tr>`;
+    const connError = `<tr><td colspan="8" style="text-align:center; padding: 20px; color:var(--accent-rose);">Server connection error.</td></tr>`;
     if (tbody) tbody.innerHTML = connError;
     if (overviewTbody) overviewTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 16px; color:var(--accent-rose);">Connection error</td></tr>`;
+  }
+}
+
+// ─── AGENT PERMISSIONS MODAL HANDLERS ─────────────────────────────────────────
+async function openAgentPermissionsModal(agentCode, agentName) {
+  const modal = document.getElementById('agentPermissionsModal');
+  const targetCodeEl = document.getElementById('permTargetAgentCode');
+  const modalAgentNameEl = document.getElementById('permModalAgentName');
+  const modalAgentCodeEl = document.getElementById('permModalAgentCode');
+
+  if (targetCodeEl) targetCodeEl.value = agentCode;
+  if (modalAgentNameEl) modalAgentNameEl.textContent = agentName || agentCode;
+  if (modalAgentCodeEl) modalAgentCodeEl.textContent = agentCode;
+
+  // Reset checkboxes
+  const allCheckboxIds = ['perm_dashboard', 'perm_call', 'perm_agents', 'perm_mapping', 'perm_recordings', 'perm_reports'];
+  allCheckboxIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
+
+  // Fetch current permissions
+  try {
+    const res = await fetch(getAdminApiUrl('get_permissions', `agent_code=${encodeURIComponent(agentCode)}`));
+    const data = await res.json();
+    if (data.success && Array.isArray(data.allowed_modules)) {
+      data.allowed_modules.forEach(mod => {
+        const cb = document.getElementById('perm_' + mod);
+        if (cb) cb.checked = true;
+      });
+    } else {
+      // Default: dashboard, call, agents, recordings
+      ['perm_dashboard', 'perm_call', 'perm_agents', 'perm_recordings'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = true;
+      });
+    }
+  } catch (e) {
+    ['perm_dashboard', 'perm_call', 'perm_agents', 'perm_recordings'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = true;
+    });
+  }
+
+  if (modal) {
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+  }
+}
+
+function closeAgentPermissionsModal() {
+  const modal = document.getElementById('agentPermissionsModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+}
+
+function setPermissionPreset(preset) {
+  const map = {
+    'all': ['perm_dashboard', 'perm_call', 'perm_agents', 'perm_mapping', 'perm_recordings', 'perm_reports'],
+    'default': ['perm_dashboard', 'perm_call', 'perm_agents', 'perm_recordings'],
+    'readonly': ['perm_dashboard', 'perm_agents', 'perm_recordings']
+  };
+
+  const allIds = ['perm_dashboard', 'perm_call', 'perm_agents', 'perm_mapping', 'perm_recordings', 'perm_reports'];
+  const toCheck = map[preset] || map['default'];
+
+  allIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = toCheck.includes(id);
+  });
+}
+
+async function saveAgentPermissions(e) {
+  if (e) e.preventDefault();
+  const agentCode = document.getElementById('permTargetAgentCode').value.trim();
+  const btn = document.getElementById('btnSavePermissions');
+
+  const allModules = ['dashboard', 'call', 'agents', 'mapping', 'recordings', 'reports'];
+  const allowed = [];
+
+  allModules.forEach(mod => {
+    const cb = document.getElementById('perm_' + mod);
+    if (cb && cb.checked) {
+      allowed.push(mod);
+    }
+  });
+
+  // Always ensure dashboard is included
+  if (!allowed.includes('dashboard')) {
+    allowed.unshift('dashboard');
+  }
+
+  let origBtn = '';
+  if (btn) {
+    origBtn = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<div class="spinner"></div> <span>Saving...</span>`;
+  }
+
+  try {
+    const res = await fetch(getAdminApiUrl('save_permissions'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken()
+      },
+      body: JSON.stringify({
+        agent_code: agentCode,
+        allowed_modules: allowed
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || `Permissions saved for agent '${agentCode}'!`, 'success');
+      closeAgentPermissionsModal();
+      loadAgentsList();
+    } else {
+      showToast(data.message || 'Failed to save permissions', 'error');
+    }
+  } catch (err) {
+    showToast('Error saving permissions', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtn;
+    }
   }
 }
 
@@ -707,12 +871,18 @@ async function loadRecordings() {
           const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
           const streamUrl = isLaravel 
             ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
-            : `http://117.217.126.149:880/roottech/index.php?r=recording/play&kind=${r.play_kind || 'recording'}&id=${r.play_id}&token=11af5c25470d1306970a9175df8a1213da7435960305169f`;
+            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
           
+          const safeCaller = escapeHtml(r.caller_number || '');
+          const safeDest = escapeHtml(r.destination_number || '');
+          const safeBooking = escapeHtml(r.booking_id || '');
+          const safeTime = escapeHtml(r.start_time || '');
+          const safeDur = r.duration || 0;
+
           audioControl = `
-            <a href="${streamUrl}" target="_blank" class="audio-btn">
+            <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${r.id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
               <i class="fa-solid fa-play"></i> Play
-            </a>
+            </button>
           `;
         }
 

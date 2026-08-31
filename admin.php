@@ -1,5 +1,9 @@
 <?php
 session_start();
+if (!isset($_SESSION['agent']) || empty($_SESSION['agent']['session_token']) || empty($_SESSION['agent']['is_admin'])) {
+    header('Location: login.php');
+    exit;
+}
 $apiToken = '11af5c25470d1306970a9175df8a1213da7435960305169f';
 $maskDid = '912612385555';
 $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
@@ -878,6 +882,126 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
   </div>
 </div>
 
+<!-- Agent Permissions Modal -->
+<div id="agentPermissionsModal" class="modal-overlay" style="display: none;">
+  <div class="glass-panel modal-box modal-animated" style="max-width: 580px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <div>
+        <h3 class="card-title" style="margin-bottom: 2px;">
+          <i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i>
+          Agent Portal Permissions
+        </h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin:0;">Configure accessible tabs and modules for <strong id="permModalAgentName" style="color:var(--text-bright);">-</strong> (Ext: <span id="permModalAgentCode" class="token-code">-</span>)</p>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeAgentPermissionsModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Quick Presets -->
+    <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setPermissionPreset('all')" style="font-size: 11px; padding: 4px 10px;">
+        <i class="fa-solid fa-check-double"></i> Allow All
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setPermissionPreset('default')" style="font-size: 11px; padding: 4px 10px;">
+        <i class="fa-solid fa-user-check"></i> Standard Agent (Default)
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="setPermissionPreset('readonly')" style="font-size: 11px; padding: 4px 10px;">
+        <i class="fa-solid fa-eye"></i> Minimal / View Only
+      </button>
+    </div>
+
+    <!-- Permission Checkboxes List -->
+    <form id="agentPermissionsForm" onsubmit="saveAgentPermissions(event)">
+      <input type="hidden" id="permTargetAgentCode" value="">
+
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+
+        <!-- 1. Dashboard Overview -->
+        <label class="perm-option-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-glass); cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-chart-pie" style="color: var(--accent-cyan); font-size: 16px; width: 20px;"></i>
+            <div>
+              <div style="font-weight: 600; color: var(--text-bright); font-size: 13px;">Dashboard Overview</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Live status toggle, agent stats, and quick overview</div>
+            </div>
+          </div>
+          <input type="checkbox" id="perm_dashboard" value="dashboard" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);">
+        </label>
+
+        <!-- 2. Click-to-Call -->
+        <label class="perm-option-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-glass); cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-phone-volume" style="color: var(--accent-emerald); font-size: 16px; width: 20px;"></i>
+            <div>
+              <div style="font-weight: 600; color: var(--text-bright); font-size: 13px;">Click-to-Call Service</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Initiate outbound calls to Customer or Maid/Helper</div>
+            </div>
+          </div>
+          <input type="checkbox" id="perm_call" value="call" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);">
+        </label>
+
+        <!-- 3. Agents Directory -->
+        <label class="perm-option-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-glass); cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-users" style="color: var(--primary); font-size: 16px; width: 20px;"></i>
+            <div>
+              <div style="font-weight: 600; color: var(--text-bright); font-size: 13px;">Agents Directory</div>
+              <div style="font-size: 11px; color: var(--text-muted);">View registered support agents and their availability</div>
+            </div>
+          </div>
+          <input type="checkbox" id="perm_agents" value="agents" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);">
+        </label>
+
+        <!-- 4. DID Masking -->
+        <label class="perm-option-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-glass); cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-mask" style="color: var(--accent-amber); font-size: 16px; width: 20px;"></i>
+            <div>
+              <div style="font-weight: 600; color: var(--text-bright); font-size: 13px;">Universal DID Masking</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Configure BSNL DID number masking for Bookings</div>
+            </div>
+          </div>
+          <input type="checkbox" id="perm_mapping" value="mapping" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);">
+        </label>
+
+        <!-- 5. Call Recordings -->
+        <label class="perm-option-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-glass); cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-file-audio" style="color: var(--accent-cyan); font-size: 16px; width: 20px;"></i>
+            <div>
+              <div style="font-weight: 600; color: var(--text-bright); font-size: 13px;">Call Recordings & Audio</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Search and stream recorded call audio</div>
+            </div>
+          </div>
+          <input type="checkbox" id="perm_recordings" value="recordings" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);">
+        </label>
+
+        <!-- 6. API Reports & Logs -->
+        <label class="perm-option-card" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: var(--bg-card-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-glass); cursor: pointer;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-chart-line" style="color: var(--accent-rose); font-size: 16px; width: 20px;"></i>
+            <div>
+              <div style="font-weight: 600; color: var(--text-bright); font-size: 13px;">API Reports & Telemetry Logs</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Access transaction payloads and Asterisk PBX logs</div>
+            </div>
+          </div>
+          <input type="checkbox" id="perm_reports" value="reports" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);">
+        </label>
+
+      </div>
+
+      <div style="display: flex; gap: 12px;">
+        <button type="submit" id="btnSavePermissions" class="btn btn-primary" style="flex: 1;">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Save Permissions</span>
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="closeAgentPermissionsModal()" style="flex: 1;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Create Queue Modal -->
 <div id="createQueueModal" class="modal-overlay" style="display: none;">
   <div class="glass-panel modal-box modal-animated">
@@ -1084,6 +1208,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
 <div id="toastContainer" class="toast-container"></div>
 
 <script src="assets/js/telephony-simulator.js"></script>
+<script src="assets/js/audio-player.js"></script>
 <script src="assets/js/admin.js"></script>
 </body>
 </html>

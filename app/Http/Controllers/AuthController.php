@@ -20,7 +20,9 @@ class AuthController extends Controller
     public function showLogin(): View|RedirectResponse
     {
         if (session()->has('agent') && !empty(session('agent.session_token'))) {
-            return redirect()->route('dashboard');
+            $agentCode = strtolower(trim((string) session('agent.agent_code', '')));
+            $isAdmin = session('agent.is_admin', false) || $agentCode === 'admin';
+            return redirect()->route($isAdmin ? 'admin' : 'dashboard');
         }
 
         return view('auth.login');
@@ -33,32 +35,41 @@ class AuthController extends Controller
             'password'   => 'required|string',
         ]);
 
-        $result = $this->apiService->agentLogin(
-            $request->input('agent_code'),
-            $request->input('password')
-        );
+        $inputCode = trim((string) $request->input('agent_code'));
+        $password  = (string) $request->input('password');
+
+        $result = $this->apiService->agentLogin($inputCode, $password);
 
         if (!empty($result['success']) && !empty($result['session_token'])) {
+            $resolvedCode = $result['agent_code'] ?? $inputCode;
+            $isAdmin = strtolower($resolvedCode) === 'admin'
+                    || (!empty($result['agent']['role']) && in_array(strtolower($result['agent']['role']), ['admin', 'superadmin']));
+
             session([
                 'agent' => [
                     'session_token' => $result['session_token'],
-                    'agent_code'    => $result['agent_code'] ?? $request->input('agent_code'),
+                    'agent_code'    => $resolvedCode,
                     'info'          => $result['agent'] ?? [],
                     'queue'         => $result['queue'] ?? 'root-support',
+                    'is_admin'      => $isAdmin,
                 ]
             ]);
 
+            $targetRoute = $isAdmin ? route('admin') : route('dashboard');
+            $welcomeMsg  = $isAdmin ? 'Admin authentication successful! Opening Admin Console...' : 'Agent login successful! Opening Dashboard...';
+
             return response()->json([
                 'success'       => true,
-                'message'       => 'Login successful',
-                'redirect'      => route('dashboard'),
+                'message'       => $welcomeMsg,
+                'redirect'      => $targetRoute,
                 'session_token' => $result['session_token'],
+                'is_admin'      => $isAdmin,
             ]);
         }
 
         return response()->json([
             'success' => false,
-            'message' => $result['message'] ?? 'Authentication failed',
+            'message' => $result['message'] ?? 'Invalid ID or Password. Please try again.',
         ], 401);
     }
 

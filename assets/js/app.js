@@ -1,6 +1,82 @@
-let loadedRecordingsList = [];
+// GLOBAL HELPER FUNCTIONS
+function getCsrfToken() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  return meta ? meta.getAttribute('content') : '';
+}
+
+function getApiUrl(action, queryParams = '') {
+  const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard') || window.location.pathname.includes('/admin');
+  if (isLaravel) {
+    return `/api/telephony/${action}${queryParams ? '?' + queryParams : ''}`;
+  }
+  return `api.php?action=${action}${queryParams ? '&' + queryParams : ''}`;
+}
+
+function getApiHeaders(contentType = 'application/json') {
+  const headers = {};
+  if (contentType) headers['Content-Type'] = contentType;
+  const csrf = getCsrfToken();
+  if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+  return headers;
+}
+
+function togglePasswordVisibility() {
+  const passInput = document.getElementById('password');
+  const passIcon = document.getElementById('togglePasswordIcon');
+  if (!passInput) return;
+  
+  if (passInput.type === 'password') {
+    passInput.type = 'text';
+    if (passIcon) {
+      passIcon.classList.remove('fa-eye');
+      passIcon.classList.add('fa-eye-slash');
+    }
+  } else {
+    passInput.type = 'password';
+    if (passIcon) {
+      passIcon.classList.remove('fa-eye-slash');
+      passIcon.classList.add('fa-eye');
+    }
+  }
+}
+
+function fillDemoCredentials(code = '1001', pass = 'Agent@123') {
+  const codeInput = document.getElementById('agentCode');
+  const passInput = document.getElementById('password');
+  if (codeInput) codeInput.value = code;
+  if (passInput) passInput.value = pass;
+  showToast('Demo credentials filled!', 'success');
+  const btnLogin = document.getElementById('btnLogin');
+  if (btnLogin) btnLogin.focus();
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+  const nextTheme = isDark ? 'light' : 'dark';
+  
+  if (nextTheme === 'dark') {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    document.body.classList.remove('dark');
+  }
+  localStorage.setItem('theme', nextTheme);
+  
+  const icons = document.querySelectorAll('#themeToggleBtn i, .theme-toggle-btn i');
+  icons.forEach(icon => {
+    icon.className = nextTheme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
+
+  // Sync theme toggle icon on load
+  const currentDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+  const themeIcons = document.querySelectorAll('#themeToggleBtn i, .theme-toggle-btn i');
+  themeIcons.forEach(icon => {
+    icon.className = currentDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  });
 
   // LOGIN PAGE HANDLER
   const loginForm = document.getElementById('loginForm');
@@ -20,10 +96,15 @@ document.addEventListener('DOMContentLoaded', () => {
       btnLogin.disabled = true;
       btnLogin.innerHTML = `<div class="spinner"></div> <span>Authenticating...</span>`;
 
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      const endpoint = csrfMeta ? '/login' : 'api.php?action=login';
+      const headers = { 'Content-Type': 'application/json' };
+      if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.getAttribute('content');
+
       try {
-        const response = await fetch('api.php?action=login', {
+        const response = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify({ agent_code: agentCode, password: password })
         });
 
@@ -32,10 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           showToast('Login successful! Loading dashboard...', 'success');
           setTimeout(() => {
-            window.location.href = 'dashboard.php';
+            window.location.href = data.redirect || 'dashboard.php';
           }, 500);
         } else {
-          if (alertMessage) alertMessage.textContent = data.message || 'Login failed.';
+          if (alertMessage) alertMessage.textContent = data.message || 'Invalid agent credentials.';
           if (alertBox) alertBox.style.display = 'flex';
           showToast(data.message || 'Login failed', 'error');
           btnLogin.disabled = false;
@@ -73,9 +154,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const sidebarStatusDot = document.getElementById('sidebarStatusDot');
 
       try {
-        const response = await fetch('api.php?action=status', {
+        const response = await fetch(getApiUrl('status'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({ status: newStatus })
         });
 
@@ -109,9 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const pass = document.getElementById('newPassword').value.trim();
 
       try {
-        const res = await fetch('api.php?action=agent_create', {
+        const res = await fetch(getApiUrl('agent_create'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({ agent_code: code, full_name: name, password: pass, sip_peer: code })
         });
         const data = await res.json();
@@ -177,9 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
           valid_until: validUntil
         };
 
-        const res = await fetch('api.php?action=mapping', {
+        const res = await fetch(getApiUrl('mapping'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -238,9 +319,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const res = await fetch('api.php?action=mapping_deactivate', {
+        const res = await fetch(getApiUrl('mapping_deactivate'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({ booking_id: bookingId, status: status })
         });
         const data = await res.json();
@@ -284,6 +365,72 @@ document.addEventListener('DOMContentLoaded', () => {
     mRecSearch.addEventListener('keyup', filterRecordingsLocally);
   }
 
+  // REPORTS FILTER FORM
+  const moduleReportsFilterForm = document.getElementById('moduleReportsFilterForm');
+  if (moduleReportsFilterForm) {
+    moduleReportsFilterForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      loadReportsModule(1);
+    });
+  }
+
+  const mRepSearch = document.getElementById('mRepSearch');
+  if (mRepSearch) {
+    let repSearchTimer;
+    mRepSearch.addEventListener('input', () => {
+      clearTimeout(repSearchTimer);
+      repSearchTimer = setTimeout(() => loadReportsModule(1), 350);
+    });
+  }
+
+  // EDIT AGENT FORM LISTENER
+  const editAgentForm = document.getElementById('editAgentForm');
+  if (editAgentForm) {
+    editAgentForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('editAgentId').value;
+      const code = document.getElementById('editAgentCode').value;
+      const name = document.getElementById('editFullName').value.trim();
+      const pass = document.getElementById('editPassword').value.trim();
+      const sipSecret = document.getElementById('editSipSecret').value.trim();
+
+      const btnSubmit = document.getElementById('btnSubmitEditAgent');
+      let origBtn = '';
+      if (btnSubmit) {
+        origBtn = btnSubmit.innerHTML;
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = `<div class="spinner"></div> <span>Updating...</span>`;
+      }
+
+      try {
+        const payload = { id: parseInt(id, 10), agent_code: code, full_name: name };
+        if (pass) payload.password = pass;
+        if (sipSecret) payload.sip_secret = sipSecret;
+
+        const res = await fetch(getApiUrl('agent_update'), {
+          method: 'POST',
+          headers: getApiHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Agent '${code}' updated successfully!`, 'success');
+          closeEditAgentModal();
+          loadAgentsModule();
+        } else {
+          showToast(data.message || 'Update failed', 'error');
+        }
+      } catch (err) {
+        showToast('Error updating agent', 'error');
+      } finally {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = origBtn;
+        }
+      }
+    });
+  }
+
   // ─── INITIAL DASHBOARD LOAD & URL ROUTING ─────────────────────────────────
   const initialHash = window.location.hash;
   if (initialHash) {
@@ -309,8 +456,9 @@ function getSlugFromModuleId(moduleId) {
 function getModuleIdFromSlug(slug) {
   if (!slug) return 'module-dashboard';
   slug = slug.replace(/^#/, '').toLowerCase().trim();
-  const valid = ['dashboard', 'call', 'agents', 'mapping', 'recordings'];
+  const valid = ['dashboard', 'call', 'agents', 'mapping', 'recordings', 'reports', 'logs'];
   if (valid.includes(slug)) {
+    if (slug === 'logs') return 'module-reports';
     return 'module-' + slug;
   }
   return 'module-dashboard';
@@ -318,8 +466,20 @@ function getModuleIdFromSlug(slug) {
 
 // SWITCH SIDEBAR MODULES & URL ROUTER
 function switchModule(moduleId, updateUrl = true) {
-  const targetId = moduleId.startsWith('module-') ? moduleId : ('module-' + moduleId);
-  const slug = getSlugFromModuleId(targetId);
+  let targetId = moduleId.startsWith('module-') ? moduleId : ('module-' + moduleId);
+  let slug = getSlugFromModuleId(targetId);
+
+  // Enforce Agent Permissions
+  if (window.ALLOWED_MODULES && Array.isArray(window.ALLOWED_MODULES)) {
+    if (slug !== 'dashboard' && !window.ALLOWED_MODULES.includes(slug)) {
+      if (typeof showToast === 'function') {
+        showToast(`Access Denied: You do not have permission to access the '${slug}' module.`, 'error');
+      }
+      targetId = 'module-dashboard';
+      slug = 'dashboard';
+    }
+  }
+
   const menuItems = document.querySelectorAll('.menu-item');
   const sections = document.querySelectorAll('.module-section');
 
@@ -344,12 +504,15 @@ function switchModule(moduleId, updateUrl = true) {
     'module-call': { title: 'Click-to-Call Services', sub: 'Initiate outbound masked calls to Customers or Maid/Helpers with Universal BSNL DID' },
     'module-agents': { title: 'Agents & Extension Directory', sub: 'Manage support agent SIP extensions and active status' },
     'module-mapping': { title: 'Universal DID Masking', sub: 'Configure Universal BSNL DID number masking for all Customers & Maids' },
-    'module-recordings': { title: 'Call Recordings & Instant Search', sub: 'Search call history instantly and listen to recorded call audio' }
+    'module-recordings': { title: 'Call Recordings & Instant Search', sub: 'Search call history instantly and listen to recorded call audio' },
+    'module-reports': { title: 'API Reports & Logs', sub: 'Telephony API telemetry, payload inspection, and transaction audit logs' }
   };
 
   if (titles[targetId]) {
-    document.getElementById('moduleTitle').textContent = titles[targetId].title;
-    document.getElementById('moduleSubtitle').textContent = titles[targetId].sub;
+    const titleEl = document.getElementById('moduleTitle');
+    const subEl = document.getElementById('moduleSubtitle');
+    if (titleEl) titleEl.textContent = titles[targetId].title;
+    if (subEl) subEl.textContent = titles[targetId].sub;
   }
 
   // Update browser URL hash
@@ -370,6 +533,8 @@ function switchModule(moduleId, updateUrl = true) {
     loadAgentsModule();
   } else if (targetId === 'module-recordings') {
     loadRecordingsModule();
+  } else if (targetId === 'module-reports') {
+    loadReportsModule(1);
   }
 }
 
@@ -381,7 +546,7 @@ async function refreshDashboardOverview() {
 
 async function loadAgentsStats() {
   try {
-    const res = await fetch('api.php?action=agent_list');
+    const res = await fetch(getApiUrl('agent_list'));
     const data = await res.json();
     if (data.success && Array.isArray(data.agents)) {
       const activeCount = document.getElementById('statActiveAgents');
@@ -404,7 +569,7 @@ async function loadRecentActivity() {
 
   try {
     const today = new Date().toISOString().split('T')[0];
-    const res = await fetch(`api.php?action=recordings&from=${today}&to=${today}&limit=10`);
+    const res = await fetch(getApiUrl('recordings', `from=${encodeURIComponent(today)}&to=${encodeURIComponent(today)}&limit=10`));
     const data = await res.json();
 
     if (data.success && Array.isArray(data.rows)) {
@@ -429,8 +594,22 @@ async function loadRecentActivity() {
 
         let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
         if (r.play_id) {
-          const audioUrl = `http://117.217.126.149:880/roottech/index.php?r=recording/play&kind=${r.play_kind || 'recording'}&id=${r.play_id}&token=11af5c25470d1306970a9175df8a1213da7435960305169f`;
-          audioControl = `<audio controls src="${audioUrl}" style="height:30px; width:160px;"></audio>`;
+          const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard');
+          const audioUrl = isLaravel 
+            ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
+            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
+          
+          const safeCaller = escapeHtml(r.caller_number || '');
+          const safeDest = escapeHtml(r.destination_number || '');
+          const safeBooking = escapeHtml(r.booking_id || '');
+          const safeTime = escapeHtml(r.start_time || '');
+          const safeDur = r.duration || 0;
+
+          audioControl = `
+            <button type="button" class="audio-btn" onclick="openAudioPlayer('${audioUrl}', { id: '${r.play_id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
+              <i class="fa-solid fa-play"></i> Play
+            </button>
+          `;
         }
 
         tr.innerHTML = `
@@ -498,9 +677,9 @@ async function triggerCallTarget(target) {
 
   try {
     const action = target === 'customer' ? 'customer' : 'call_maid';
-    const res = await fetch(`api.php?action=${action}`, {
+    const res = await fetch(getApiUrl(action), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getApiHeaders(),
       body: JSON.stringify({
         booking_id: bookingId,
         source_extension: extension,
@@ -577,7 +756,7 @@ async function loadAgentsModule() {
   `;
 
   try {
-    const res = await fetch('api.php?action=agent_list');
+    const res = await fetch(getApiUrl('agent_list'));
     const data = await res.json();
 
     if (data.success && Array.isArray(data.agents)) {
@@ -624,9 +803,9 @@ async function deleteAgentModule(agentId, agentCode) {
   if (!confirm(`Delete agent extension '${agentCode}'?`)) return;
 
   try {
-    const res = await fetch('api.php?action=agent_delete', {
+    const res = await fetch(getApiUrl('agent_delete'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getApiHeaders(),
       body: JSON.stringify({ id: agentId })
     });
     const data = await res.json();
@@ -659,7 +838,7 @@ async function loadRecordingsModule() {
   `;
 
   try {
-    const url = `api.php?action=recordings&from=${fromDate}&to=${toDate}&limit=100`;
+    const url = getApiUrl('recordings', `from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}&limit=100`);
     const res = await fetch(url);
     const data = await res.json();
 
@@ -731,8 +910,22 @@ function renderRecordingsRows(rows) {
 
     let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
     if (r.play_id) {
-      const streamUrl = `http://117.217.126.149:880/roottech/index.php?r=recording/play&kind=${r.play_kind || 'recording'}&id=${r.play_id}&token=11af5c25470d1306970a9175df8a1213da7435960305169f`;
-      audioControl = `<audio controls src="${streamUrl}" style="height:32px; width:180px;"></audio>`;
+      const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard');
+      const streamUrl = isLaravel 
+        ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
+        : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
+      
+      const safeCaller = escapeHtml(r.caller_number || '');
+      const safeDest = escapeHtml(r.destination_number || '');
+      const safeBooking = escapeHtml(r.booking_id || '');
+      const safeTime = escapeHtml(r.start_time || '');
+      const safeDur = r.duration || 0;
+
+      audioControl = `
+        <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${r.play_id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
+          <i class="fa-solid fa-play"></i> Play
+        </button>
+      `;
     }
 
     tr.innerHTML = `
@@ -762,15 +955,266 @@ function resetRecordingsFilter() {
   showToast('Recordings search filters reset!', 'info');
 }
 
-// MODALS & TOASTS
+// ─── REPORTS & TELEPHONY API LOGS MODULE ─────────────────────────────────────
+let currentReportsPage = 1;
+let loadedReportsList = [];
+
+async function loadReportsModule(page = 1) {
+  currentReportsPage = page;
+  const tbody = document.getElementById('moduleReportsTableBody');
+  if (!tbody) return;
+
+  const fromDate = document.getElementById('mRepFromDate') ? document.getElementById('mRepFromDate').value : '';
+  const toDate = document.getElementById('mRepToDate') ? document.getElementById('mRepToDate').value : '';
+  const endpoint = document.getElementById('mRepEndpoint') ? document.getElementById('mRepEndpoint').value : '';
+  const httpStatus = document.getElementById('mRepHttpStatus') ? document.getElementById('mRepHttpStatus').value : '';
+  const limit = document.getElementById('mRepLimit') ? document.getElementById('mRepLimit').value : 50;
+  const query = document.getElementById('mRepSearch') ? document.getElementById('mRepSearch').value.trim() : '';
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="12" style="text-align: center; padding: 28px; color: var(--text-muted);">
+        <div class="spinner" style="margin: 0 auto 10px;"></div> Loading Telephony API Logs...
+      </td>
+    </tr>
+  `;
+
+  try {
+    let params = `page=${page}&limit=${limit}`;
+    if (fromDate) params += `&from=${encodeURIComponent(fromDate)}`;
+    if (toDate) params += `&to=${encodeURIComponent(toDate)}`;
+    if (endpoint) params += `&endpoint=${encodeURIComponent(endpoint)}`;
+    if (httpStatus) params += `&http=${encodeURIComponent(httpStatus)}`;
+    if (query) params += `&q=${encodeURIComponent(query)}`;
+
+    const res = await fetch(getApiUrl('logs', params));
+    const data = await res.json();
+
+    if (data.success && Array.isArray(data.rows)) {
+      loadedReportsList = data.rows;
+      const total = data.total || data.rows.length;
+
+      const statTotal = document.getElementById('statReportsTotal');
+      const statOk = document.getElementById('statReportsOk');
+      const statErrors = document.getElementById('statReportsErrors');
+      const statPage = document.getElementById('statReportsPage');
+      const countBadge = document.getElementById('reportsCountBadge');
+
+      if (statTotal) statTotal.textContent = total;
+      if (statPage) statPage.textContent = `Page ${page}`;
+      if (countBadge) countBadge.textContent = `${total} Logs Found`;
+
+      let okCount = 0;
+      let errCount = 0;
+      data.rows.forEach(r => {
+        const code = parseInt(r.http_code || 200, 10);
+        if (code >= 200 && code < 400) okCount++;
+        else errCount++;
+      });
+      if (statOk) statOk.textContent = okCount;
+      if (statErrors) statErrors.textContent = errCount;
+
+      renderReportsRows(data.rows);
+      renderReportsPagination(total, page, parseInt(limit, 10));
+    } else {
+      tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:24px; color:#fca5a5;">Failed to load logs: ${escapeHtml(data.message || 'Error')}</td></tr>`;
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:24px; color:#fca5a5;">Server error loading logs.</td></tr>`;
+  }
+}
+
+function renderReportsRows(rows) {
+  const tbody = document.getElementById('moduleReportsTableBody');
+  if (!tbody) return;
+
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:24px; color:var(--text-muted);">No logs matching search criteria.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const code = parseInt(r.http_code || 200, 10);
+    let httpBadge = `<span class="badge badge-emerald">${code} OK</span>`;
+    if (code >= 400) {
+      httpBadge = `<span class="badge badge-rose">${code} ERROR</span>`;
+    }
+
+    const method = escapeHtml(r.method || 'GET');
+    const methodBadge = method === 'POST' ? '<span class="badge badge-purple">POST</span>' : '<span class="badge badge-cyan">GET</span>';
+
+    tr.innerHTML = `
+      <td><strong style="color:var(--text-bright);">#${r.id}</strong></td>
+      <td style="font-size:11px; white-space:nowrap;">${escapeHtml(r.created_at || r.timestamp || '')}</td>
+      <td>${methodBadge}</td>
+      <td><span class="badge badge-purple" style="font-family:monospace; font-size:11px;">${escapeHtml(r.endpoint || '')}</span></td>
+      <td>${httpBadge}</td>
+      <td>${r.booking_id ? `<strong style="color:#a5b4fc;">${escapeHtml(r.booking_id)}</strong>` : '<span style="color:var(--text-dim);">-</span>'}</td>
+      <td>${r.agent_code ? `<span class="badge badge-cyan">${escapeHtml(r.agent_code)}</span>` : '<span style="color:var(--text-dim);">-</span>'}</td>
+      <td>${r.target ? `<span class="badge badge-purple">${escapeHtml(r.target)}</span>` : '<span style="color:var(--text-dim);">-</span>'}</td>
+      <td><span style="font-size:11px; font-family:monospace;">${escapeHtml(r.request_id || '-')}</span></td>
+      <td style="font-size:11px;">${escapeHtml(r.ip || '127.0.0.1')} / ${r.latency_ms || 12}ms</td>
+      <td style="font-size:12px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(r.summary || r.response_summary || '')}">${escapeHtml(r.summary || r.response_summary || 'Success')}</td>
+      <td style="text-align:center;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openLogDetailsModal(${r.id})" style="padding:2px 8px; font-size:11px;" title="View Payloads">
+          <i class="fa-solid fa-code"></i>
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderReportsPagination(total, page, limit) {
+  const info = document.getElementById('reportsPaginationInfo');
+  const btns = document.getElementById('reportsPaginationButtons');
+  if (!info || !btns) return;
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const start = Math.min((page - 1) * limit + 1, total);
+  const end = Math.min(page * limit, total);
+
+  info.textContent = `Showing ${total > 0 ? start : 0} to ${end} of ${total} logs`;
+
+  let btnHtml = '';
+  if (page > 1) {
+    btnHtml += `<button type="button" class="btn btn-secondary btn-sm" onclick="loadReportsModule(${page - 1})"><i class="fa-solid fa-chevron-left"></i> Prev</button>`;
+  }
+  btnHtml += `<span style="font-size:12px; color:var(--text-muted); padding:0 8px;">Page ${page} of ${totalPages}</span>`;
+  if (page < totalPages) {
+    btnHtml += `<button type="button" class="btn btn-secondary btn-sm" onclick="loadReportsModule(${page + 1})">Next <i class="fa-solid fa-chevron-right"></i></button>`;
+  }
+  btns.innerHTML = btnHtml;
+}
+
+function resetReportsFilter() {
+  const searchEl = document.getElementById('mRepSearch');
+  if (searchEl) searchEl.value = '';
+  const epEl = document.getElementById('mRepEndpoint');
+  if (epEl) epEl.value = '';
+  const httpEl = document.getElementById('mRepHttpStatus');
+  if (httpEl) httpEl.value = '';
+  loadReportsModule(1);
+  showToast('Reports filter reset', 'info');
+}
+
+function exportReportsCSV() {
+  if (!loadedReportsList || loadedReportsList.length === 0) {
+    showToast('No logs to export', 'error');
+    return;
+  }
+  const headers = ['ID', 'Timestamp', 'Method', 'Endpoint', 'HTTP_Code', 'Booking_ID', 'Agent_Ext', 'Request_ID', 'IP', 'Latency_ms'];
+  const csvRows = [headers.join(',')];
+
+  loadedReportsList.forEach(r => {
+    csvRows.push([
+      r.id || '',
+      `"${r.created_at || r.timestamp || ''}"`,
+      r.method || 'GET',
+      `"${r.endpoint || ''}"`,
+      r.http_code || 200,
+      `"${r.booking_id || ''}"`,
+      `"${r.agent_code || ''}"`,
+      `"${r.request_id || ''}"`,
+      r.ip || '',
+      r.latency_ms || 0
+    ].join(','));
+  });
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `telephony_logs_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV export started!', 'success');
+}
+
+function openLogDetailsModal(id) {
+  const log = loadedReportsList.find(r => r.id === id);
+  if (!log) return;
+
+  const modal = document.getElementById('logDetailsModal');
+  const backdrop = document.getElementById('modalBackdrop');
+  const title = document.getElementById('logModalTitle');
+  const reqJson = document.getElementById('logModalReqJson');
+  const resJson = document.getElementById('logModalResJson');
+  const overview = document.getElementById('logModalOverview');
+
+  if (title) title.textContent = `Log #${log.id} Details - ${log.endpoint || ''}`;
+  if (overview) {
+    overview.innerHTML = `
+      <div style="background:var(--bg-user-box); padding:8px 12px; border-radius:var(--radius-sm); font-size:12px;"><strong>Method:</strong> ${escapeHtml(log.method || 'GET')}</div>
+      <div style="background:var(--bg-user-box); padding:8px 12px; border-radius:var(--radius-sm); font-size:12px;"><strong>HTTP Code:</strong> ${escapeHtml(log.http_code || 200)}</div>
+      <div style="background:var(--bg-user-box); padding:8px 12px; border-radius:var(--radius-sm); font-size:12px;"><strong>Latency:</strong> ${escapeHtml(log.latency_ms || 12)}ms</div>
+      <div style="background:var(--bg-user-box); padding:8px 12px; border-radius:var(--radius-sm); font-size:12px;"><strong>Timestamp:</strong> ${escapeHtml(log.created_at || '')}</div>
+    `;
+  }
+
+  if (reqJson) {
+    reqJson.textContent = typeof log.request_payload === 'object' ? JSON.stringify(log.request_payload, null, 2) : (log.request_payload || 'No request payload');
+  }
+  if (resJson) {
+    resJson.textContent = typeof log.response_payload === 'object' ? JSON.stringify(log.response_payload, null, 2) : (log.response_payload || 'No response payload');
+  }
+
+  if (backdrop) backdrop.style.display = 'block';
+  if (modal) modal.style.display = 'block';
+}
+
+function closeLogDetailsModal() {
+  const modal = document.getElementById('logDetailsModal');
+  const backdrop = document.getElementById('modalBackdrop');
+  if (modal) modal.style.display = 'none';
+  if (backdrop) backdrop.style.display = 'none';
+}
+
+function copyLogJson(elemId) {
+  const elem = document.getElementById(elemId);
+  if (!elem) return;
+  navigator.clipboard.writeText(elem.textContent).then(() => {
+    showToast('Payload copied to clipboard!', 'success');
+  }).catch(() => {
+    showToast('Failed to copy', 'error');
+  });
+}
+
+// ─── AGENT MODALS ────────────────────────────────────────────────────────────
 function openCreateAgentModal() {
   const modal = document.getElementById('createAgentModal');
+  const backdrop = document.getElementById('modalBackdrop');
   if (modal) modal.style.display = 'block';
+  if (backdrop) backdrop.style.display = 'block';
 }
 
 function closeCreateAgentModal() {
   const modal = document.getElementById('createAgentModal');
+  const backdrop = document.getElementById('modalBackdrop');
   if (modal) modal.style.display = 'none';
+  if (backdrop) backdrop.style.display = 'none';
+}
+
+function openEditAgentModal(agent) {
+  const modal = document.getElementById('editAgentModal');
+  const backdrop = document.getElementById('modalBackdrop');
+  if (document.getElementById('editAgentId')) document.getElementById('editAgentId').value = agent.id || '';
+  if (document.getElementById('editAgentCode')) document.getElementById('editAgentCode').value = agent.agent_code || '';
+  if (document.getElementById('editFullName')) document.getElementById('editFullName').value = agent.full_name || '';
+  if (document.getElementById('editPassword')) document.getElementById('editPassword').value = '';
+  if (document.getElementById('editSipSecret')) document.getElementById('editSipSecret').value = agent.sip_secret || '';
+
+  if (backdrop) backdrop.style.display = 'block';
+  if (modal) modal.style.display = 'block';
+}
+
+function closeEditAgentModal() {
+  const modal = document.getElementById('editAgentModal');
+  const backdrop = document.getElementById('modalBackdrop');
+  if (modal) modal.style.display = 'none';
+  if (backdrop) backdrop.style.display = 'none';
 }
 
 function showToast(message, type = 'info') {
