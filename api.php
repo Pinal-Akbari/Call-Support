@@ -490,8 +490,34 @@ if ($action === 'save_note') {
 function getDbConnection() {
     static $pdo = null;
     if ($pdo === null) {
+        $envHost = '127.0.0.1';
+        $envPort = '3306';
+        $envDb   = 'root_cms';
+        $envUser = 'root';
+        $envPass = '';
+
+        $envFile = __DIR__ . '/.env';
+        if (file_exists($envFile)) {
+            $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if (empty($trimmed) || str_starts_with($trimmed, '#')) continue;
+                if (strpos($trimmed, '=') !== false) {
+                    [$k, $v] = explode('=', $trimmed, 2);
+                    $k = trim($k);
+                    $v = trim($v, " \t\n\r\0\x0B\"'");
+                    if ($k === 'DB_HOST') $envHost = $v;
+                    if ($k === 'DB_PORT') $envPort = $v;
+                    if ($k === 'DB_DATABASE') $envDb = $v;
+                    if ($k === 'DB_USERNAME') $envUser = $v;
+                    if ($k === 'DB_PASSWORD') $envPass = $v;
+                }
+            }
+        }
+
         try {
-            $pdo = new PDO('mysql:host=127.0.0.1;port=3306;dbname=root_cms;charset=utf8mb4', 'root', '', [
+            $dsn = "mysql:host={$envHost};port={$envPort};dbname={$envDb};charset=utf8mb4";
+            $pdo = new PDO($dsn, $envUser, $envPass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
             ]);
