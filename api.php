@@ -1,7 +1,11 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+    @session_start();
+}
 
-header('Content-Type: application/json');
+if (!headers_sent()) {
+    header('Content-Type: application/json');
+}
 
 define('DEFAULT_API_TOKEN', '11af5c25470d1306970a9175df8a1213da7435960305169f');
 define('BASE_API_URL', 'http://117.217.126.149:880/roottech/index.php');
@@ -578,7 +582,7 @@ if ($action === 'get_permissions') {
 if ($action === 'save_permissions') {
     $input = json_decode(file_get_contents('php://input'), true);
     $targetCode = trim($input['agent_code'] ?? '');
-    $modules = (array) ($input['modules'] ?? []);
+    $modules = (array) ($input['modules'] ?? ($input['allowed_modules'] ?? []));
 
     if (empty($targetCode)) {
         http_response_code(422);
