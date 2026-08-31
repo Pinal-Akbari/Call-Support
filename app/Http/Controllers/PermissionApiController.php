@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class PermissionApiController extends Controller
 {
     /**
-     * Get all agents' permissions.
+     * List all agents and their configured permissions.
      * GET /api/permissions
      */
     public function index(): JsonResponse
@@ -21,6 +21,19 @@ class PermissionApiController extends Controller
             'message'         => 'Agent permissions retrieved successfully.',
             'total'           => $allRecords->count(),
             'permissions'     => $allRecords,
+            'all_modules'     => AgentPermission::$allModules,
+            'default_modules' => AgentPermission::$defaultModules,
+        ]);
+    }
+
+    /**
+     * Get all available system modules and default permission sets.
+     * GET /api/permissions/modules
+     */
+    public function modules(): JsonResponse
+    {
+        return response()->json([
+            'success'         => true,
             'all_modules'     => AgentPermission::$allModules,
             'default_modules' => AgentPermission::$defaultModules,
         ]);
@@ -53,9 +66,9 @@ class PermissionApiController extends Controller
     }
 
     /**
-     * Save / Update permissions for an agent.
-     * POST /api/permissions/{agentCode} or POST /api/permissions
-     * Payload: { "modules": ["dashboard", "call", "agents", "recordings"] }
+     * Create or update permissions for an agent.
+     * POST /api/permissions or POST /api/permissions/{agentCode}
+     * Payload: { "agent_code": "1001", "modules": ["dashboard", "call", "recordings"] }
      */
     public function store(Request $request, ?string $agentCode = null): JsonResponse
     {
@@ -76,7 +89,7 @@ class PermissionApiController extends Controller
             $rawModules = AgentPermission::$defaultModules;
         }
 
-        // Filter valid modules
+        // Filter valid modules against system definitions
         $validKeys = array_keys(AgentPermission::$allModules);
         $cleanModules = array_values(array_intersect(array_map('trim', $rawModules), $validKeys));
 
@@ -93,6 +106,15 @@ class PermissionApiController extends Controller
             'allowed_modules' => $record->allowed_modules,
             'updated_at'      => $record->updated_at,
         ]);
+    }
+
+    /**
+     * Update permissions for a specific agent.
+     * PUT /api/permissions/{agentCode}
+     */
+    public function update(Request $request, string $agentCode): JsonResponse
+    {
+        return $this->store($request, $agentCode);
     }
 
     /**

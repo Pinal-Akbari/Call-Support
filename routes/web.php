@@ -29,9 +29,11 @@ Route::post('/status', [AuthController::class, 'updateStatus'])->name('agent.sta
 Route::get('/api/telephony/stream_audio', [ApiController::class, 'streamAudio'])->name('api.telephony.stream');
 
 // RESTful Agent Permissions API (MySQL root_cms database)
+Route::get('/api/permissions/modules/list', [PermissionApiController::class, 'modules'])->name('api.permissions.modules');
 Route::get('/api/permissions', [PermissionApiController::class, 'index'])->name('api.permissions.index');
 Route::get('/api/permissions/{agentCode}', [PermissionApiController::class, 'show'])->name('api.permissions.show');
 Route::post('/api/permissions/{agentCode?}', [PermissionApiController::class, 'store'])->name('api.permissions.store');
+Route::match(['put', 'patch'], '/api/permissions/{agentCode}', [PermissionApiController::class, 'update'])->name('api.permissions.update');
 Route::delete('/api/permissions/{agentCode}', [PermissionApiController::class, 'destroy'])->name('api.permissions.destroy');
 
 // Protected Routes requiring Agent/Admin Authentication
