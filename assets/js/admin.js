@@ -871,12 +871,18 @@ async function loadRecordings() {
           const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
           const streamUrl = isLaravel 
             ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
-            : `http://117.217.126.149:880/roottech/index.php?r=recording/play&kind=${r.play_kind || 'recording'}&id=${r.play_id}&token=11af5c25470d1306970a9175df8a1213da7435960305169f`;
+            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
           
+          const safeCaller = escapeHtml(r.caller_number || '');
+          const safeDest = escapeHtml(r.destination_number || '');
+          const safeBooking = escapeHtml(r.booking_id || '');
+          const safeTime = escapeHtml(r.start_time || '');
+          const safeDur = r.duration || 0;
+
           audioControl = `
-            <a href="${streamUrl}" target="_blank" class="audio-btn">
+            <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${r.id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
               <i class="fa-solid fa-play"></i> Play
-            </a>
+            </button>
           `;
         }
 

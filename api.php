@@ -233,6 +233,44 @@ if ($action === 'recordings') {
     exit;
 }
 
+// 11.1 STREAM AUDIO RECORDING
+if ($action === 'stream_audio') {
+    $kind = $_GET['kind'] ?? 'recording';
+    $id = $_GET['id'] ?? '';
+    if (empty($id)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing recording ID']);
+        exit;
+    }
+    
+    $url = BASE_API_URL . '?r=recording/play&kind=' . urlencode($kind) . '&id=' . urlencode($id);
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . DEFAULT_API_TOKEN
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    $audioData = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'audio/wav';
+    curl_close($ch);
+    
+    if ($httpCode === 200 && $audioData) {
+        header('Content-Type: ' . $contentType);
+        header('Content-Disposition: inline; filename="recording_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $id) . '.wav"');
+        header('Accept-Ranges: bytes');
+        header('Content-Length: ' . strlen($audioData));
+        echo $audioData;
+        exit;
+    } else {
+        http_response_code($httpCode ?: 404);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Recording audio not found']);
+        exit;
+    }
+}
+
 // 12. AUTH CHECK
 if ($action === 'auth_check') {
     $url = BASE_API_URL . '?r=auth/check';

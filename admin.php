@@ -1208,6 +1208,7 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
 <div id="toastContainer" class="toast-container"></div>
 
 <script src="assets/js/telephony-simulator.js"></script>
+<script src="assets/js/audio-player.js"></script>
 <script src="assets/js/admin.js"></script>
 </body>
 </html>

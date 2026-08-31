@@ -1184,5 +1184,6 @@
 
 @push('scripts')
 <script src="{{ asset('js/telephony-simulator.js') }}"></script>
+<script src="{{ asset('js/audio-player.js') }}"></script>
 <script src="{{ asset('js/admin.js') }}"></script>
 @endpush

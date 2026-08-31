@@ -591,6 +591,7 @@ $queue = $agentSession['queue'] ?? 'root-support';
   <div id="toastContainer" class="toast-container"></div>
 
   <script src="assets/js/telephony-simulator.js"></script>
+  <script src="assets/js/audio-player.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

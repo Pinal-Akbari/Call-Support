@@ -594,8 +594,22 @@ async function loadRecentActivity() {
 
         let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
         if (r.play_id) {
-          const audioUrl = `http://117.217.126.149:880/roottech/index.php?r=recording/play&kind=${r.play_kind || 'recording'}&id=${r.play_id}&token=11af5c25470d1306970a9175df8a1213da7435960305169f`;
-          audioControl = `<audio controls src="${audioUrl}" style="height:30px; width:160px;"></audio>`;
+          const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard');
+          const audioUrl = isLaravel 
+            ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
+            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
+          
+          const safeCaller = escapeHtml(r.caller_number || '');
+          const safeDest = escapeHtml(r.destination_number || '');
+          const safeBooking = escapeHtml(r.booking_id || '');
+          const safeTime = escapeHtml(r.start_time || '');
+          const safeDur = r.duration || 0;
+
+          audioControl = `
+            <button type="button" class="audio-btn" onclick="openAudioPlayer('${audioUrl}', { id: '${r.play_id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
+              <i class="fa-solid fa-play"></i> Play
+            </button>
+          `;
         }
 
         tr.innerHTML = `
@@ -896,8 +910,22 @@ function renderRecordingsRows(rows) {
 
     let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
     if (r.play_id) {
-      const streamUrl = `http://117.217.126.149:880/roottech/index.php?r=recording/play&kind=${r.play_kind || 'recording'}&id=${r.play_id}&token=11af5c25470d1306970a9175df8a1213da7435960305169f`;
-      audioControl = `<audio controls src="${streamUrl}" style="height:32px; width:180px;"></audio>`;
+      const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard');
+      const streamUrl = isLaravel 
+        ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
+        : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
+      
+      const safeCaller = escapeHtml(r.caller_number || '');
+      const safeDest = escapeHtml(r.destination_number || '');
+      const safeBooking = escapeHtml(r.booking_id || '');
+      const safeTime = escapeHtml(r.start_time || '');
+      const safeDur = r.duration || 0;
+
+      audioControl = `
+        <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${r.play_id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
+          <i class="fa-solid fa-play"></i> Play
+        </button>
+      `;
     }
 
     tr.innerHTML = `
