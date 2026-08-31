@@ -33,9 +33,21 @@ class ApiController extends Controller
     {
         switch ($action) {
 
-            // ── Auth ─────────────────────────────────────────────────────────
+            // ── Auth & Status ────────────────────────────────────────────────
             case 'auth_check':
                 return response()->json($this->apiService->authCheck());
+
+            case 'status':
+                $status = $request->input('status', 'available');
+                $sessionToken = session('agent.session_token', '');
+                if (empty($sessionToken)) {
+                    return response()->json(['success' => false, 'message' => 'Agent session expired'], 401);
+                }
+                $res = $this->apiService->updateAgentStatus($status, $sessionToken);
+                if (!empty($res['success'])) {
+                    session(['agent.info.status' => $status]);
+                }
+                return response()->json($res);
 
             // ── Agents ───────────────────────────────────────────────────────
             case 'agent_list':
@@ -51,6 +63,48 @@ class ApiController extends Controller
                 $id = (int) $request->input('id');
                 return response()->json($this->apiService->deleteAgent($id));
 
+            // ── Agent Permissions ───────────────────────────────────────────
+            case 'get_permissions':
+                $agentCode = (string) $request->input('agent_code', session('agent.agent_code', '1001'));
+                $allowed = \App\Models\AgentPermission::getPermissions($agentCode);
+                return response()->json([
+                    'success'         => true,
+                    'agent_code'      => $agentCode,
+                    'allowed_modules' => $allowed,
+                    'all_modules'     => \App\Models\AgentPermission::$allModules,
+                ]);
+
+            case 'save_permissions':
+                $currentAgentCode = strtolower(trim((string) session('agent.agent_code', '')));
+                $isAdmin = session('agent.is_admin', false) || $currentAgentCode === 'admin';
+                if (!$isAdmin) {
+                    return response()->json(['success' => false, 'message' => 'Admin privileges required to manage agent permissions.'], 403);
+                }
+
+                $targetCode = trim((string) $request->input('agent_code', ''));
+                $modules = (array) $request->input('allowed_modules', []);
+
+                if (empty($targetCode)) {
+                    return response()->json(['success' => false, 'message' => 'Agent code is required.'], 422);
+                }
+
+                $record = \App\Models\AgentPermission::setPermissions($targetCode, $modules);
+                return response()->json([
+                    'success'         => true,
+                    'message'         => "Permissions updated successfully for Agent '{$targetCode}'!",
+                    'agent_code'      => $targetCode,
+                    'allowed_modules' => $record->allowed_modules,
+                ]);
+
+            case 'all_agents_permissions':
+                $all = \App\Models\AgentPermission::all()->keyBy('agent_code');
+                return response()->json([
+                    'success'         => true,
+                    'permissions'     => $all,
+                    'all_modules'     => \App\Models\AgentPermission::$allModules,
+                    'default_modules' => \App\Models\AgentPermission::$defaultModules,
+                ]);
+
             // ── DID Masking ──────────────────────────────────────────────────
             case 'mapping':
                 return response()->json($this->apiService->createMapping($request->all()));
@@ -60,13 +114,31 @@ class ApiController extends Controller
 
             // ── Click-to-Call ────────────────────────────────────────────────
             case 'call':
-                return response()->json($this->apiService->originateCall($request->all()));
+                $callData = $request->all();
+                $agentCode = trim((string) session('agent.agent_code', ''));
+                $isAdmin   = session('agent.is_admin', false) || strtolower($agentCode) === 'admin';
+                if (!$isAdmin && !empty($agentCode)) {
+                    $callData['source_extension'] = $agentCode;
+                }
+                return response()->json($this->apiService->originateCall($callData));
 
             case 'customer':
-                return response()->json($this->apiService->callCustomer($request->all()));
+                $custData = $request->all();
+                $agentCode = trim((string) session('agent.agent_code', ''));
+                $isAdmin   = session('agent.is_admin', false) || strtolower($agentCode) === 'admin';
+                if (!$isAdmin && !empty($agentCode)) {
+                    $custData['source_extension'] = $agentCode;
+                }
+                return response()->json($this->apiService->callCustomer($custData));
 
             case 'call_maid':
-                return response()->json($this->apiService->callMaid($request->all()));
+                $maidData = $request->all();
+                $agentCode = trim((string) session('agent.agent_code', ''));
+                $isAdmin   = session('agent.is_admin', false) || strtolower($agentCode) === 'admin';
+                if (!$isAdmin && !empty($agentCode)) {
+                    $maidData['source_extension'] = $agentCode;
+                }
+                return response()->json($this->apiService->callMaid($maidData));
 
             case 'call_status':
                 $reqId = (string) $request->input('request_id', '');
@@ -81,9 +153,9 @@ class ApiController extends Controller
                 $sessionToken = session('agent.session_token', '');
                 return response()->json($this->apiService->agentAck($request->all(), $sessionToken));
 
-            // ── Call Recordings ──────────────────────────────────────────────
+            // ── Call Recordings (Scoped by Agent) ────────────────────────────
             case 'recordings':
-                // Cast inputs to string|null safely (fixes TypeError when query param is array)
+                // Cast inputs to string|null safely
                 $rawFrom  = $request->input('from');
                 $rawTo    = $request->input('to');
                 $rawQ     = $request->input('q');
@@ -93,11 +165,36 @@ class ApiController extends Controller
                 $q     = is_array($rawQ)     ? null : ($rawQ     ?: null);
                 $limit = (int) $request->input('limit', 100);
 
-                return response()->json(
-                    $this->apiService->getRecordings($from, $to, $q, $limit)
-                );
+                $result = $this->apiService->getRecordings($from, $to, $q, $limit);
 
-            // ── Reports & Telephony API Logs ──────────────────────────────────
+                // Scope to logged-in agent if not admin
+                $agentCode = strtolower(trim((string) session('agent.agent_code', '')));
+                $isAdmin   = session('agent.is_admin', false) || $agentCode === 'admin';
+
+                if (!$isAdmin && !empty($result['success']) && is_array($result['rows'])) {
+                    $filteredRows = array_values(array_filter($result['rows'], function ($r) use ($agentCode) {
+                        $caller = strtolower((string) ($r['caller_number'] ?? ''));
+                        $dest   = strtolower((string) ($r['destination_number'] ?? ''));
+                        $agCode = strtolower((string) ($r['agent_code'] ?? ''));
+                        $user   = strtolower((string) ($r['user'] ?? ''));
+                        $peer   = strtolower((string) ($r['sip_peer'] ?? ''));
+
+                        return $caller === $agentCode 
+                            || $dest === $agentCode 
+                            || $agCode === $agentCode 
+                            || $user === $agentCode 
+                            || $peer === $agentCode
+                            || str_ends_with($caller, $agentCode) 
+                            || str_ends_with($dest, $agentCode);
+                    }));
+
+                    $result['rows'] = $filteredRows;
+                    $result['total'] = count($filteredRows);
+                }
+
+                return response()->json($result);
+
+            // ── Reports & Telephony API Logs (Scoped by Agent) ────────────────
             case 'logs':
                 $rawFrom     = $request->input('from');
                 $rawTo       = $request->input('to');
@@ -114,9 +211,24 @@ class ApiController extends Controller
                 $limit    = (int) $request->input('limit', 50);
                 $id       = $request->filled('id') ? (int) $request->input('id') : null;
 
-                return response()->json(
-                    $this->apiService->getLogs($from, $to, $endpoint, $http, $q, $page, $limit, $id)
-                );
+                $result = $this->apiService->getLogs($from, $to, $endpoint, $http, $q, $page, $limit, $id);
+
+                // Scope to logged-in agent if not admin
+                $agentCode = strtolower(trim((string) session('agent.agent_code', '')));
+                $isAdmin   = session('agent.is_admin', false) || $agentCode === 'admin';
+
+                if (!$isAdmin && !empty($result['success']) && is_array($result['rows'])) {
+                    $filteredRows = array_values(array_filter($result['rows'], function ($r) use ($agentCode) {
+                        $agCode = strtolower((string) ($r['agent_code'] ?? ''));
+                        $reqBody = strtolower((string) (is_array($r['request_payload'] ?? '') ? json_encode($r['request_payload']) : ($r['request_payload'] ?? '')));
+                        return $agCode === $agentCode || str_contains($reqBody, $agentCode);
+                    }));
+
+                    $result['rows'] = $filteredRows;
+                    $result['total'] = count($filteredRows);
+                }
+
+                return response()->json($result);
 
             // ── Audio Streaming (also reachable via action if needed) ─────────
             case 'stream_audio':

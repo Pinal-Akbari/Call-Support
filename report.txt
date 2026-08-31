@@ -1,4 +1,4 @@
-﻿====================================================================================================
+====================================================================================================
                         ROOTTECH CALL-SUPPORT & IP PBX CRM SYSTEM
                           CLIENT PROJECT HANDOVER & DAILY LOG
 ====================================================================================================
@@ -7,7 +7,10 @@ Client Handover   : Daily Work Progress, Telephony Architecture & Module Invento
 Architecture      : Hybrid (Laravel 11 MVC + Standalone XAMPP PHP 8.2 + Asterisk PBX 20)
 PBX Gateway URL   : http://117.217.126.149:880/roottech/index.php
 Universal DID Mask: 912612385555
-Report Maintained : Real-Time / Day-Wise Updates
+Project Start Date: 28th August, 2026
+Report Current Date: 31st August, 2026
+Last Updated Time : 31-Aug-2026, 03:50 PM IST
+Status            : Active & Fully Functional
 ====================================================================================================
 
 ====================================================================================================
@@ -16,6 +19,7 @@ Report Maintained : Real-Time / Day-Wise Updates
 1. Master Architecture & Environment Overview
 2. Day-Wise Chronological Work Logs:
    - DAY 1 (28-Aug-2026): Seed Setup, 27-API Audit, IP PBX Engine, Responsive UI, Simulator & Caller 360°
+   - DAY 2 (31-Aug-2026): Dashboard Routing, API Reports, Admin Auth, RBAC Permissions, Call Isolation & Blade Fix
 3. Complete 29-Point Telephony & CRM API Reference
 4. Telephony & CRM API Data Structures & Payload Mapping
 5. System Modules & Functional Inventory
@@ -119,6 +123,85 @@ FILES MODIFIED ON DAY 1:
   • assets/js/admin.js & public/js/admin.js
   • assets/js/app.js & public/js/app.js
   • assets/js/telephony-simulator.js & public/js/telephony-simulator.js
+----------------------------------------------------------------------------------------------------
+
+
+----------------------------------------------------------------------------------------------------
+[DAY 2] DATE: 31st August, 2026
+----------------------------------------------------------------------------------------------------
+MODULES WORKED ON:
+  1. Remote API Verification & Syntax Optimization
+  2. Complete Dashboard Navigation & Real-Time Module Router
+  3. API Reports & Telephony Audit Logs Engine
+  4. Super Administrator Authentication & Route Protection
+  5. Role-Based Access Control (RBAC) & Agent Permission Management
+  6. Multi-Tenant Agent Data Privacy & Call Isolation
+  7. Blade Directive Optimization & View Cache Verification
+
+DETAILED TASKS COMPLETED:
+
+  [1] Remote API & Database Verification:
+      - Validated all 5 registered support agent extensions (1001, 1002, 1003, 1004, 1005) on PBX server.
+      - Integrated dynamic CSRF token headers and AJAX proxy URL builders across all client scripts.
+      - Fixed agent status change endpoint in ApiController.php to handle queue status toggles.
+
+  [2] Dashboard Navigation & Hash Router Fix:
+      - Diagnosed and resolved JavaScript syntax exception breaking sidebar event listeners.
+      - Implemented full client-side URL hash router supporting all 6 dashboard sections:
+        (#dashboard, #call, #agents, #mapping, #recordings, #reports).
+      - Synced tab state transitions, browser popstate back/forward actions, and header titles.
+
+  [3] API Reports & Telephony Audit Logs Module:
+      - Connected GET /api/telephony/logs endpoint with real-time payload inspection.
+      - Added dynamic search, date range filters, HTTP status filters, pagination controls, and CSV export.
+      - Built interactive Log Details Modal to inspect raw JSON request & response payloads.
+
+  [4] Admin ID & Password Protection (Option 1 - Smart Unified Login):
+      - Created and verified Super Admin record (Username: admin | Password: Admin@123).
+      - Built smart role-based authentication:
+        • Logging in as 'admin' -> Automatically redirects to Admin Console (/admin).
+        • Logging in as '1001' (Agent) -> Automatically redirects to Agent Portal (/dashboard).
+      - Implemented Dual-Layer Security (EnsureAdminAuthenticated middleware + AdminController verification)
+        strictly blocking non-admin agents from accessing /admin with automatic redirect and toast alert.
+
+  [5] Role-Based Access Control (RBAC) & Agent Permission Management:
+      - Created 'agent_permissions' table schema and Eloquent Model (AgentPermission.php).
+      - Added API endpoints (?action=get_permissions, ?action=save_permissions, ?action=all_agents_permissions).
+      - Built interactive "Permissions 🛡️" Modal in Admin Console with toggles for all 6 modules:
+        (Dashboard Overview, Click-to-Call, Agents Directory, DID Masking, Call Recordings, API Reports).
+      - Included 1-click presets: [Allow All], [Standard Agent (Default)], [Minimal / View Only].
+      - Enforced Blade conditional rendering and JavaScript hash router permission checking.
+
+  [6] Agent Data Privacy & Call Isolation:
+      - Restricted Call Recordings and Dashboard Recent Activity so agents ONLY see calls associated with
+        their own extension (caller_number / destination_number = agent_code).
+      - Locked Click-to-Call source extension to the logged-in agent's extension, preventing identity spoofing.
+      - Restricted API Telemetry Logs to logged-in agent actions only.
+      - Super Administrator retains 360° global visibility across all agents, recordings, and PBX queues.
+
+  [7] Blade Directive Optimization & View Cache Verification:
+      - Fixed Blade @json parser exception on resources/views/dashboard.blade.php (line 992) where array commas
+        in default fallback parameters were erroneously split into separate directive arguments.
+      - Migrated directive to explicit raw JSON encoding ({!! json_encode(...) !!}).
+      - Cleared and re-compiled Blade template cache (php artisan view:clear & php artisan view:cache)
+        confirming 100% error-free server-side template rendering.
+
+FILES MODIFIED ON DAY 2:
+  • database/migrations/2026_08_31_093327_create_agent_permissions_table.php
+  • app/Models/AgentPermission.php
+  • app/Http/Controllers/AuthController.php
+  • app/Http/Controllers/AdminController.php
+  • app/Http/Controllers/DashboardController.php
+  • app/Http/Controllers/ApiController.php
+  • app/Http/Middleware/EnsureAdminAuthenticated.php
+  • bootstrap/app.php
+  • routes/web.php
+  • resources/views/auth/login.blade.php & login.php
+  • resources/views/admin.blade.php & admin.php
+  • resources/views/dashboard.blade.php & dashboard.php
+  • assets/js/admin.js & public/js/admin.js
+  • assets/js/app.js & public/js/app.js
+  • api.php
 ----------------------------------------------------------------------------------------------------
 
 
@@ -271,5 +354,6 @@ C. REMOTE PBX & TELEPHONY GATEWAY:
    • Universal Inbound DID    : 912612385555
 
 ====================================================================================================
-                [END OF REPORT - MAINTAINED FOR REAL-TIME CLIENT HANDOVER]
+                 [END OF REPORT - CLIENT HANDOVER LOG AS OF 31-AUG-2026]
+                     Maintained & Updated in Real-Time for Client Review
 ====================================================================================================

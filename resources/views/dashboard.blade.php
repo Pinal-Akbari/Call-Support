@@ -25,30 +25,40 @@
         <span>Dashboard Overview</span>
       </div>
 
+      @if(in_array('call', $allowedModules ?? ['dashboard', 'call', 'agents', 'recordings']))
       <div class="menu-item" data-module="module-call">
         <i class="fa-solid fa-phone-volume"></i>
         <span>Click-to-Call</span>
       </div>
+      @endif
 
+      @if(in_array('agents', $allowedModules ?? ['dashboard', 'call', 'agents', 'recordings']))
       <div class="menu-item" data-module="module-agents">
         <i class="fa-solid fa-users"></i>
         <span>Agents Directory</span>
       </div>
+      @endif
 
+      @if(in_array('mapping', $allowedModules ?? []))
       <div class="menu-item" data-module="module-mapping">
         <i class="fa-solid fa-mask"></i>
         <span>DID Masking</span>
       </div>
+      @endif
 
+      @if(in_array('recordings', $allowedModules ?? ['dashboard', 'call', 'agents', 'recordings']))
       <div class="menu-item" data-module="module-recordings">
         <i class="fa-solid fa-file-audio"></i>
         <span>Call Recordings</span>
       </div>
+      @endif
 
+      @if(in_array('reports', $allowedModules ?? []))
       <div class="menu-item" data-module="module-reports">
         <i class="fa-solid fa-chart-line"></i>
         <span>API Reports & Logs</span>
       </div>
+      @endif
     </div>
 
     <!-- SIDEBAR BOTTOM USER & LOGOUT BUTTON -->
@@ -977,4 +987,18 @@
     </button>
   </div>
 </div>
+
+<script>
+  window.ALLOWED_MODULES = {!! json_encode($allowedModules ?? ['dashboard', 'call', 'agents', 'recordings']) !!};
+</script>
+
+@if(session('error'))
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof showToast === 'function') {
+      showToast("{{ session('error') }}", 'error');
+    }
+  });
+</script>
+@endif
 @endsection
