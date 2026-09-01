@@ -23,7 +23,9 @@ class ApiController extends Controller
     {
         $kind = (string) $request->query('kind', 'recording');
         $id   = (string) $request->query('id', '');
-        return $this->apiService->streamAudio($kind, $id);
+        $range = $request->header('Range');
+        $dur  = intval($request->query('duration', 30));
+        return $this->apiService->streamAudio($kind, $id, $range, $dur);
     }
 
     /**

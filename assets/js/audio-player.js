@@ -1,7 +1,7 @@
 /**
  * RootTech Telephony - Universal Popup & Background Floating Audio Player
  * Supports modal popup, live waveform animation, background audio playback on minimize,
- * seekbar scrubber, speed toggle, volume control, and direct download.
+ * 60fps seekbar scrubber, live drag-seek, forward/rewind controls, speed toggle, volume control, and direct download.
  */
 
 (function () {
@@ -90,7 +90,9 @@
             <!-- Progress Bar / Scrubber -->
             <div class="audio-progress-wrap">
               <div class="audio-progress-bar" id="playerProgressBar" onclick="handleSeekbarClick(event)">
-                <div class="audio-progress-fill" id="playerProgressFill"></div>
+                <div class="audio-progress-fill" id="playerProgressFill">
+                  <div class="audio-progress-handle" id="playerProgressHandle"></div>
+                </div>
               </div>
               <div class="audio-time-row">
                 <span id="playerCurrentTime">00:00</span>
@@ -110,20 +112,20 @@
 
               <!-- Main Playback Actions -->
               <div class="audio-main-actions">
-                <button type="button" class="audio-skip-btn" onclick="skipAudio(-10)" title="Rewind 10 seconds">
+                <button type="button" class="audio-skip-btn" onclick="skipAudio(-10)" title="Rewind 10 seconds (Left Arrow)">
                   <i class="fa-solid fa-rotate-left"></i>
                 </button>
-                <button type="button" class="audio-play-big-btn" id="playerPlayBigBtn" onclick="toggleAudioPlayback()" title="Play / Pause">
+                <button type="button" class="audio-play-big-btn" id="playerPlayBigBtn" onclick="toggleAudioPlayback()" title="Play / Pause (Space)">
                   <i class="fa-solid fa-play" id="playerPlayIcon"></i>
                 </button>
-                <button type="button" class="audio-skip-btn" onclick="skipAudio(10)" title="Forward 10 seconds">
+                <button type="button" class="audio-skip-btn" onclick="skipAudio(10)" title="Forward 10 seconds (Right Arrow)">
                   <i class="fa-solid fa-rotate-right"></i>
                 </button>
               </div>
 
               <!-- Volume Control -->
               <div class="audio-volume-wrap">
-                <button type="button" class="audio-ctrl-btn" onclick="toggleAudioMute()" title="Mute / Unmute" style="border:none; background:transparent;">
+                <button type="button" class="audio-ctrl-btn" onclick="toggleAudioMute()" title="Mute / Unmute (M)" style="border:none; background:transparent;">
                   <i class="fa-solid fa-volume-high" id="playerVolumeIcon"></i>
                 </button>
                 <input type="range" class="audio-volume-slider" id="playerVolumeSlider" min="0" max="1" step="0.05" value="1" oninput="handleVolumeChange(event)" title="Volume">
@@ -164,80 +166,36 @@
 
     document.body.appendChild(container);
     initAudioEventListeners();
+    attachScrubberDragListeners();
   }
 
   // State Management
   const speeds = [1.0, 1.25, 1.5, 2.0];
   let currentSpeedIndex = 0;
   let audioEl = null;
+  let currentTrackDuration = 30;
+  let animFrameId = null;
+  let progressTimer = null;
+  let isDraggingScrubber = false;
 
-  function initAudioEventListeners() {
-    audioEl = document.getElementById('globalAudioPlayerElement');
-    if (!audioEl) return;
-
-    audioEl.addEventListener('play', () => {
-      updatePlayState(true);
-    });
-
-    audioEl.addEventListener('pause', () => {
-      updatePlayState(false);
-    });
-
-    audioEl.addEventListener('ended', () => {
-      updatePlayState(false);
-      const fill = document.getElementById('playerProgressFill');
-      if (fill) fill.style.width = '100%';
-    });
-
-    audioEl.addEventListener('timeupdate', () => {
-      if (!audioEl || isNaN(audioEl.duration)) return;
-      const current = audioEl.currentTime;
-      const duration = audioEl.duration;
-      const percent = duration > 0 ? (current / duration) * 100 : 0;
-
-      const fill = document.getElementById('playerProgressFill');
-      if (fill) fill.style.width = `${percent}%`;
-
-      const currText = formatTime(current);
-      const durText = formatTime(duration);
-
-      const elCurr = document.getElementById('playerCurrentTime');
-      const elDur = document.getElementById('playerTotalDuration');
-      const elFloatCurr = document.getElementById('floatingCurrentTime');
-      const elFloatDur = document.getElementById('floatingDuration');
-
-      if (elCurr) elCurr.textContent = currText;
-      if (elDur) elDur.textContent = durText;
-      if (elFloatCurr) elFloatCurr.textContent = currText;
-      if (elFloatDur) elFloatDur.textContent = durText;
-    });
-
-    audioEl.addEventListener('loadedmetadata', () => {
-      if (!audioEl) return;
-      const durText = formatTime(audioEl.duration);
-      const elDur = document.getElementById('playerTotalDuration');
-      const elFloatDur = document.getElementById('floatingDuration');
-      if (elDur) elDur.textContent = durText;
-      if (elFloatDur) elFloatDur.textContent = durText;
-    });
-
-    audioEl.addEventListener('error', (err) => {
-      console.warn('Audio playback notice:', err);
-      if (typeof window.showToast === 'function') {
-        window.showToast('Audio stream loaded or connecting to PBX gateway...', 'info');
+  function parseDurationSeconds(val) {
+    if (val === undefined || val === null || val === '') return 0;
+    if (typeof val === 'number') return isFinite(val) && val > 0 ? val : 0;
+    if (typeof val === 'string') {
+      val = val.trim().replace(/s$/i, '');
+      if (val.includes(':')) {
+        const parts = val.split(':').map(Number);
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          return parts[0] * 60 + parts[1];
+        }
+        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+          return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
       }
-    });
-
-    // Keyboard controls: Space to play/pause, Esc to close
-    document.addEventListener('keydown', (e) => {
-      const modal = document.getElementById('audioPlayerModal');
-      const floatBar = document.getElementById('audioPlayerFloatingBar');
-      const isVisible = (modal && !modal.classList.contains('hidden')) || (floatBar && !floatBar.classList.contains('hidden'));
-
-      if (isVisible && e.key === 'Escape') {
-        closeAudioPlayer();
-      }
-    });
+      const num = parseFloat(val);
+      return !isNaN(num) && isFinite(num) && num > 0 ? num : 0;
+    }
+    return 0;
   }
 
   function formatTime(seconds) {
@@ -245,6 +203,244 @@
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  }
+
+  function getEffectiveDuration() {
+    if (audioEl && audioEl.duration && isFinite(audioEl.duration) && audioEl.duration > 0) {
+      currentTrackDuration = audioEl.duration;
+    }
+    return currentTrackDuration > 0 ? currentTrackDuration : 30;
+  }
+
+  function updateProgress() {
+    if (!audioEl || isDraggingScrubber) return;
+    const current = audioEl.currentTime || 0;
+    const duration = getEffectiveDuration();
+
+    const percent = duration > 0 ? Math.min(100, Math.max(0, (current / duration) * 100)) : 0;
+
+    const fill = document.getElementById('playerProgressFill');
+    if (fill) {
+      fill.style.width = `${percent.toFixed(2)}%`;
+    }
+
+    const currText = formatTime(current);
+    const durText = formatTime(duration);
+
+    const elCurr = document.getElementById('playerCurrentTime');
+    const elDur = document.getElementById('playerTotalDuration');
+    const elFloatCurr = document.getElementById('floatingCurrentTime');
+    const elFloatDur = document.getElementById('floatingDuration');
+
+    if (elCurr) elCurr.textContent = currText;
+    if (elDur) elDur.textContent = durText;
+    if (elFloatCurr) elFloatCurr.textContent = currText;
+    if (elFloatDur) elFloatDur.textContent = durText;
+  }
+
+  function progressLoop() {
+    if (audioEl && !audioEl.paused && !isDraggingScrubber) {
+      updateProgress();
+      animFrameId = requestAnimationFrame(progressLoop);
+    }
+  }
+
+  function startProgressTimer() {
+    stopProgressTimer();
+    animFrameId = requestAnimationFrame(progressLoop);
+    progressTimer = setInterval(updateProgress, 60);
+  }
+
+  function stopProgressTimer() {
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    if (progressTimer) {
+      clearInterval(progressTimer);
+      progressTimer = null;
+    }
+  }
+
+  function handleScrubMove(clientX) {
+    const bar = document.getElementById('playerProgressBar');
+    if (!bar) return 0;
+    const rect = bar.getBoundingClientRect();
+    const clickX = clientX - rect.left;
+    const width = rect.width || 1;
+    const percent = Math.max(0, Math.min(1, clickX / width));
+
+    const duration = getEffectiveDuration();
+    const targetTime = percent * duration;
+
+    // Immediate visual update during drag
+    const fill = document.getElementById('playerProgressFill');
+    if (fill) {
+      fill.style.width = `${(percent * 100).toFixed(2)}%`;
+    }
+    const elCurr = document.getElementById('playerCurrentTime');
+    if (elCurr) {
+      elCurr.textContent = formatTime(targetTime);
+    }
+
+    return targetTime;
+  }
+
+  function attachScrubberDragListeners() {
+    const bar = document.getElementById('playerProgressBar');
+    if (!bar) return;
+
+    // Mouse drag scrubbing
+    bar.addEventListener('mousedown', (e) => {
+      isDraggingScrubber = true;
+      handleScrubMove(e.clientX);
+
+      const onMouseMove = (moveEvt) => {
+        if (isDraggingScrubber) {
+          handleScrubMove(moveEvt.clientX);
+        }
+      };
+
+      const onMouseUp = (upEvt) => {
+        if (isDraggingScrubber) {
+          isDraggingScrubber = false;
+          const targetTime = handleScrubMove(upEvt.clientX);
+          if (audioEl && typeof targetTime === 'number') {
+            try {
+              audioEl.currentTime = targetTime;
+            } catch (_) {}
+            updateProgress();
+          }
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        }
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Touch drag scrubbing for mobile/tablets
+    bar.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches.length > 0) {
+        isDraggingScrubber = true;
+        handleScrubMove(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    bar.addEventListener('touchmove', (e) => {
+      if (isDraggingScrubber && e.touches && e.touches.length > 0) {
+        handleScrubMove(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    bar.addEventListener('touchend', (e) => {
+      if (isDraggingScrubber) {
+        isDraggingScrubber = false;
+        if (e.changedTouches && e.changedTouches.length > 0) {
+          const targetTime = handleScrubMove(e.changedTouches[0].clientX);
+          if (audioEl && typeof targetTime === 'number') {
+            try {
+              audioEl.currentTime = targetTime;
+            } catch (_) {}
+            updateProgress();
+          }
+        }
+      }
+    });
+  }
+
+  function initAudioEventListeners() {
+    audioEl = document.getElementById('globalAudioPlayerElement');
+    if (!audioEl) return;
+
+    audioEl.addEventListener('play', () => {
+      updatePlayState(true);
+      startProgressTimer();
+    });
+
+    audioEl.addEventListener('playing', () => {
+      updatePlayState(true);
+      startProgressTimer();
+    });
+
+    audioEl.addEventListener('pause', () => {
+      updatePlayState(false);
+      stopProgressTimer();
+      updateProgress();
+    });
+
+    audioEl.addEventListener('ended', () => {
+      updatePlayState(false);
+      stopProgressTimer();
+      const fill = document.getElementById('playerProgressFill');
+      if (fill) fill.style.width = '100%';
+      const elCurr = document.getElementById('playerCurrentTime');
+      const elDur = document.getElementById('playerTotalDuration');
+      if (elCurr && elDur) elCurr.textContent = elDur.textContent;
+    });
+
+    audioEl.addEventListener('timeupdate', () => {
+      updateProgress();
+    });
+
+    const handleDurationUpdate = () => {
+      if (!audioEl) return;
+      if (audioEl.duration && isFinite(audioEl.duration) && audioEl.duration > 0) {
+        currentTrackDuration = audioEl.duration;
+      }
+      updateProgress();
+    };
+
+    audioEl.addEventListener('loadedmetadata', handleDurationUpdate);
+    audioEl.addEventListener('durationchange', handleDurationUpdate);
+    audioEl.addEventListener('canplay', handleDurationUpdate);
+
+    audioEl.addEventListener('error', (err) => {
+      console.warn('Audio playback notice:', err);
+      stopProgressTimer();
+    });
+
+    // Universal Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      const modal = document.getElementById('audioPlayerModal');
+      const floatBar = document.getElementById('audioPlayerFloatingBar');
+      const isVisible = (modal && !modal.classList.contains('hidden')) || (floatBar && !floatBar.classList.contains('hidden'));
+
+      if (isVisible && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        if (e.key === 'Escape') {
+          closeAudioPlayer();
+        } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+          e.preventDefault();
+          toggleAudioPlayback();
+        } else if (e.key === 'ArrowLeft' || e.key === 'j' || e.key === 'J') {
+          e.preventDefault();
+          skipAudio(-5);
+        } else if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') {
+          e.preventDefault();
+          skipAudio(5);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          changeVolumeRelative(0.1);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          changeVolumeRelative(-0.1);
+        } else if (e.key === 'm' || e.key === 'M') {
+          e.preventDefault();
+          toggleAudioMute();
+        }
+      }
+    });
+  }
+
+  function changeVolumeRelative(delta) {
+    if (!audioEl) return;
+    const newVol = Math.max(0, Math.min(1, (audioEl.volume || 1) + delta));
+    audioEl.volume = newVol;
+    audioEl.muted = (newVol === 0);
+    const slider = document.getElementById('playerVolumeSlider');
+    if (slider) slider.value = newVol;
+    updateVolumeIcon(newVol);
   }
 
   function updatePlayState(isPlaying) {
@@ -270,6 +466,22 @@
   window.openAudioPlayer = function (audioUrl, meta = {}) {
     injectAudioPlayerMarkup();
     if (!audioEl) audioEl = document.getElementById('globalAudioPlayerElement');
+
+    // Reset & Initialize Duration
+    stopProgressTimer();
+    const parsedDur = parseDurationSeconds(meta.duration || meta.dur || 0);
+    currentTrackDuration = parsedDur > 0 ? parsedDur : 30;
+
+    const fill = document.getElementById('playerProgressFill');
+    if (fill) fill.style.width = '0%';
+    const elCurr = document.getElementById('playerCurrentTime');
+    const elDur = document.getElementById('playerTotalDuration');
+    const elFloatCurr = document.getElementById('floatingCurrentTime');
+    const elFloatDur = document.getElementById('floatingDuration');
+    if (elCurr) elCurr.textContent = '00:00';
+    if (elDur) elDur.textContent = formatTime(currentTrackDuration);
+    if (elFloatCurr) elFloatCurr.textContent = '00:00';
+    if (elFloatDur) elFloatDur.textContent = formatTime(currentTrackDuration);
 
     // Populate Metadata
     const callBadge = document.getElementById('playerCallBadge');
@@ -305,7 +517,11 @@
     if (audioEl) {
       audioEl.src = audioUrl;
       audioEl.playbackRate = speeds[currentSpeedIndex];
-      audioEl.play().catch(e => {
+      audioEl.currentTime = 0;
+      audioEl.play().then(() => {
+        updatePlayState(true);
+        startProgressTimer();
+      }).catch(e => {
         console.log('Autoplay deferred until user interaction:', e);
       });
     }
@@ -342,11 +558,19 @@
 
   // Close Audio Player Completely
   window.closeAudioPlayer = function () {
+    stopProgressTimer();
     if (audioEl) {
       audioEl.pause();
       audioEl.currentTime = 0;
       audioEl.src = '';
     }
+
+    const fill = document.getElementById('playerProgressFill');
+    if (fill) fill.style.width = '0%';
+    const elCurr = document.getElementById('playerCurrentTime');
+    const elDur = document.getElementById('playerTotalDuration');
+    if (elCurr) elCurr.textContent = '00:00';
+    if (elDur) elDur.textContent = '00:00';
 
     const modal = document.getElementById('audioPlayerModal');
     const floatBar = document.getElementById('audioPlayerFloatingBar');
@@ -368,20 +592,31 @@
 
   // Seekbar Click / Scrub
   window.handleSeekbarClick = function (e) {
-    if (!audioEl || isNaN(audioEl.duration)) return;
-    const bar = document.getElementById('playerProgressBar');
-    if (!bar) return;
-    const rect = bar.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const width = rect.width;
-    const percent = Math.max(0, Math.min(1, clickX / width));
-    audioEl.currentTime = percent * audioEl.duration;
+    if (!audioEl) return;
+    const targetTime = handleScrubMove(e.clientX);
+    if (typeof targetTime === 'number') {
+      try {
+        audioEl.currentTime = targetTime;
+      } catch (err) {
+        console.warn('Seek error:', err);
+      }
+      updateProgress();
+    }
   };
 
-  // Skip Forward / Backward in Seconds
+  // Skip Forward / Backward in Seconds (+10s or -10s)
   window.skipAudio = function (seconds) {
     if (!audioEl) return;
-    audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, audioEl.currentTime + seconds));
+    const duration = getEffectiveDuration();
+    const cur = audioEl.currentTime || 0;
+    const target = Math.max(0, Math.min(duration, cur + seconds));
+    
+    try {
+      audioEl.currentTime = target;
+    } catch (err) {
+      console.warn('Skip error:', err);
+    }
+    updateProgress();
   };
 
   // Cycle Playback Speed (1.0x, 1.25x, 1.5x, 2.0x)

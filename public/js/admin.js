@@ -3,9 +3,14 @@ function getCsrfToken() {
   return meta ? meta.getAttribute('content') : '';
 }
 
+function isLaravelApp() {
+  const isPhp = window.location.pathname.endsWith('.php') || window.location.pathname.includes('.php');
+  const hasCsrf = document.querySelector('meta[name="csrf-token"]') !== null;
+  return hasCsrf && !isPhp;
+}
+
 function getAdminApiUrl(action, queryParams = '') {
-  const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
-  if (isLaravel) {
+  if (isLaravelApp()) {
     return `/api/telephony/${action}${queryParams ? '?' + queryParams : ''}`;
   }
   return `api.php?action=${action}${queryParams ? '&' + queryParams : ''}`;
@@ -439,8 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
-        const uploadUrl = isLaravel ? '/api/telephony/pbx_ivr_greeting' : 'api.php?action=pbx_ivr_greeting';
+        const uploadUrl = isLaravelApp() ? '/api/telephony/pbx_ivr_greeting' : 'api.php?action=pbx_ivr_greeting';
 
         const headers = {};
         const csrf = getCsrfToken();
@@ -872,8 +876,7 @@ async function loadRecordings() {
 
         let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
         if (r.play_id) {
-          const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
-          const streamUrl = isLaravel 
+          const streamUrl = isLaravelApp() 
             ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
             : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
           

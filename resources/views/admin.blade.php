@@ -75,14 +75,10 @@
           </div>
         </div>
 
-        <div style="display: flex; gap: 8px; margin-top: 8px;">
-          <a href="{{ route('dashboard') }}" class="btn btn-secondary" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 10px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;">
-            <i class="fa-solid fa-headset"></i>
-            <span>Agent Portal</span>
-          </a>
-
-          <a href="{{ route('logout') }}" class="btn btn-danger" style="display:flex; align-items:center; justify-content:center; padding:7px 12px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;" title="Sign Out">
+        <div style="margin-top: 10px;">
+          <a href="{{ route('logout') }}" class="btn btn-danger" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:8px 12px; font-size:13px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;" title="Sign Out">
             <i class="fa-solid fa-right-from-bracket"></i>
+            <span>Sign Out / Logout</span>
           </a>
         </div>
       </div>

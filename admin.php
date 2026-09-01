@@ -1,7 +1,13 @@
 <?php
 session_start();
-if (!isset($_SESSION['agent']) || empty($_SESSION['agent']['session_token']) || empty($_SESSION['agent']['is_admin'])) {
+if (!isset($_SESSION['agent']) || empty($_SESSION['agent']['session_token'])) {
     header('Location: login.php');
+    exit;
+}
+$agentCode = strtolower(trim((string)($_SESSION['agent']['agent_code'] ?? '')));
+$isAdmin = !empty($_SESSION['agent']['is_admin']) || ($agentCode === 'admin');
+if (!$isAdmin) {
+    header('Location: dashboard.php');
     exit;
 }
 $apiToken = '11af5c25470d1306970a9175df8a1213da7435960305169f';
@@ -101,14 +107,10 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
           </div>
         </div>
 
-        <div style="display: flex; gap: 8px; margin-top: 8px;">
-          <a href="dashboard.php" class="btn btn-secondary" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 10px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;">
-            <i class="fa-solid fa-headset"></i>
-            <span>Agent Portal</span>
-          </a>
-
-          <a href="logout.php" class="btn btn-danger" style="display:flex; align-items:center; justify-content:center; padding:7px 12px; font-size:12px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;" title="Sign Out">
+        <div style="margin-top: 10px;">
+          <a href="logout.php" class="btn btn-danger" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:8px 12px; font-size:13px; font-weight:600; border-radius:var(--radius-sm); text-decoration:none;" title="Sign Out">
             <i class="fa-solid fa-right-from-bracket"></i>
+            <span>Sign Out / Logout</span>
           </a>
         </div>
       </div>
@@ -387,12 +389,13 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
                 <th>SIP Secret</th>
                 <th>Queue Status</th>
                 <th>SIP Reg State</th>
+                <th>Allowed Modules</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="agentsTableBody">
               <tr>
-                <td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">
+                <td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">
                   <div class="spinner" style="margin: 0 auto 10px;"></div> Loading Agents List...
                 </td>
               </tr>

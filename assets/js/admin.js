@@ -3,9 +3,14 @@ function getCsrfToken() {
   return meta ? meta.getAttribute('content') : '';
 }
 
+function isLaravelApp() {
+  const isPhp = window.location.pathname.endsWith('.php') || window.location.pathname.includes('.php');
+  const hasCsrf = document.querySelector('meta[name="csrf-token"]') !== null;
+  return hasCsrf && !isPhp;
+}
+
 function getAdminApiUrl(action, queryParams = '') {
-  const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
-  if (isLaravel) {
+  if (isLaravelApp()) {
     return `/api/telephony/${action}${queryParams ? '?' + queryParams : ''}`;
   }
   return `api.php?action=${action}${queryParams ? '&' + queryParams : ''}`;
@@ -439,8 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
-        const uploadUrl = isLaravel ? '/api/telephony/pbx_ivr_greeting' : 'api.php?action=pbx_ivr_greeting';
+        const uploadUrl = isLaravelApp() ? '/api/telephony/pbx_ivr_greeting' : 'api.php?action=pbx_ivr_greeting';
 
         const headers = {};
         const csrf = getCsrfToken();
@@ -870,21 +874,21 @@ async function loadRecordings() {
           dispBadge = `<span class="badge badge-rose"><i class="fa-solid fa-xmark"></i> ${escapeHtml(r.disposition)}</span>`;
         }
 
+        const recId = r.play_id || r.id;
+        const safeDur = r.duration || 30;
         let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
-        if (r.play_id) {
-          const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/admin');
-          const streamUrl = isLaravel 
-            ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
-            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
+        if (recId) {
+          const streamUrl = isLaravelApp() 
+            ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(recId)}&duration=${encodeURIComponent(safeDur)}`
+            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(recId)}&duration=${encodeURIComponent(safeDur)}`;
           
           const safeCaller = escapeHtml(r.caller_number || '');
           const safeDest = escapeHtml(r.destination_number || '');
           const safeBooking = escapeHtml(r.booking_id || '');
           const safeTime = escapeHtml(r.start_time || '');
-          const safeDur = r.duration || 0;
 
           audioControl = `
-            <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${r.id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
+            <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${r.id || recId}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
               <i class="fa-solid fa-play"></i> Play
             </button>
           `;

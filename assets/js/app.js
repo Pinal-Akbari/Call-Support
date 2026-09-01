@@ -4,9 +4,14 @@ function getCsrfToken() {
   return meta ? meta.getAttribute('content') : '';
 }
 
+function isLaravelApp() {
+  const isPhp = window.location.pathname.endsWith('.php') || window.location.pathname.includes('.php');
+  const hasCsrf = document.querySelector('meta[name="csrf-token"]') !== null;
+  return hasCsrf && !isPhp;
+}
+
 function getApiUrl(action, queryParams = '') {
-  const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard') || window.location.pathname.includes('/admin');
-  if (isLaravel) {
+  if (isLaravelApp()) {
     return `/api/telephony/${action}${queryParams ? '?' + queryParams : ''}`;
   }
   return `api.php?action=${action}${queryParams ? '&' + queryParams : ''}`;
@@ -96,10 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
       btnLogin.disabled = true;
       btnLogin.innerHTML = `<div class="spinner"></div> <span>Authenticating...</span>`;
 
-      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-      const endpoint = csrfMeta ? '/login' : 'api.php?action=login';
+      const endpoint = isLaravelApp() ? '/login' : 'api.php?action=login';
       const headers = { 'Content-Type': 'application/json' };
-      if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.getAttribute('content');
+      const csrf = getCsrfToken();
+      if (csrf) headers['X-CSRF-TOKEN'] = csrf;
 
       try {
         const response = await fetch(endpoint, {
@@ -592,21 +597,21 @@ async function loadRecentActivity() {
           statusBadge = `<span class="badge badge-rose"><i class="fa-solid fa-xmark"></i> ${r.disposition}</span>`;
         }
 
+        const recId = r.play_id || r.id;
+        const safeDur = r.duration || 30;
         let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
-        if (r.play_id) {
-          const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard');
-          const audioUrl = isLaravel 
-            ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
-            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
+        if (recId) {
+          const audioUrl = isLaravelApp() 
+            ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(recId)}&duration=${encodeURIComponent(safeDur)}`
+            : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(recId)}&duration=${encodeURIComponent(safeDur)}`;
           
           const safeCaller = escapeHtml(r.caller_number || '');
           const safeDest = escapeHtml(r.destination_number || '');
           const safeBooking = escapeHtml(r.booking_id || '');
           const safeTime = escapeHtml(r.start_time || '');
-          const safeDur = r.duration || 0;
 
           audioControl = `
-            <button type="button" class="audio-btn" onclick="openAudioPlayer('${audioUrl}', { id: '${r.play_id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
+            <button type="button" class="audio-btn" onclick="openAudioPlayer('${audioUrl}', { id: '${recId}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
               <i class="fa-solid fa-play"></i> Play
             </button>
           `;
@@ -908,21 +913,21 @@ function renderRecordingsRows(rows) {
       dispBadge = `<span class="badge badge-rose"><i class="fa-solid fa-xmark"></i> ${r.disposition}</span>`;
     }
 
+    const recId = r.play_id || r.id;
+    const safeDur = r.duration || 30;
     let audioControl = '<span style="color:var(--text-dim); font-size:12px;">No Audio</span>';
-    if (r.play_id) {
-      const isLaravel = document.querySelector('meta[name="csrf-token"]') !== null || window.location.pathname.includes('/dashboard');
-      const streamUrl = isLaravel 
-        ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`
-        : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(r.play_id)}`;
+    if (recId) {
+      const streamUrl = isLaravelApp() 
+        ? `/api/telephony/stream_audio?kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(recId)}&duration=${encodeURIComponent(safeDur)}`
+        : `api.php?action=stream_audio&kind=${encodeURIComponent(r.play_kind || 'recording')}&id=${encodeURIComponent(recId)}&duration=${encodeURIComponent(safeDur)}`;
       
       const safeCaller = escapeHtml(r.caller_number || '');
       const safeDest = escapeHtml(r.destination_number || '');
       const safeBooking = escapeHtml(r.booking_id || '');
       const safeTime = escapeHtml(r.start_time || '');
-      const safeDur = r.duration || 0;
 
       audioControl = `
-        <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${r.play_id}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
+        <button type="button" class="audio-btn" onclick="openAudioPlayer('${streamUrl}', { id: '${recId}', caller: '${safeCaller}', destination: '${safeDest}', bookingId: '${safeBooking}', time: '${safeTime}', duration: '${safeDur}' })">
           <i class="fa-solid fa-play"></i> Play
         </button>
       `;
