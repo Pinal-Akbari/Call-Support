@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ApiController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PermissionApiController;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureAgentAuthenticated;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +27,17 @@ Route::post('/status', [AuthController::class, 'updateStatus'])->name('agent.sta
 
 // Public Audio Streaming Route for HTML5 Audio Player
 Route::get('/api/telephony/stream_audio', [ApiController::class, 'streamAudio'])->name('api.telephony.stream');
+
+// Third-Party Jobs API Direct Endpoint (matches /api/third-party/jobs with query/Bearer token)
+Route::match(['get', 'post'], '/api/third-party/jobs', [ApiController::class, 'thirdPartyJobsProxy'])->name('api.third_party.jobs');
+
+// RESTful Agent Permissions API (MySQL root_cms database)
+Route::get('/api/permissions/modules/list', [PermissionApiController::class, 'modules'])->name('api.permissions.modules');
+Route::get('/api/permissions', [PermissionApiController::class, 'index'])->name('api.permissions.index');
+Route::get('/api/permissions/{agentCode}', [PermissionApiController::class, 'show'])->name('api.permissions.show');
+Route::post('/api/permissions/{agentCode?}', [PermissionApiController::class, 'store'])->name('api.permissions.store');
+Route::match(['put', 'patch'], '/api/permissions/{agentCode}', [PermissionApiController::class, 'update'])->name('api.permissions.update');
+Route::delete('/api/permissions/{agentCode}', [PermissionApiController::class, 'destroy'])->name('api.permissions.destroy');
 
 // Protected Routes requiring Agent/Admin Authentication
 Route::middleware(['agent.auth'])->group(function () {

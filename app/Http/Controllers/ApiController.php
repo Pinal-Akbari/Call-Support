@@ -23,7 +23,23 @@ class ApiController extends Controller
     {
         $kind = (string) $request->query('kind', 'recording');
         $id   = (string) $request->query('id', '');
-        return $this->apiService->streamAudio($kind, $id);
+        $range = $request->header('Range');
+        $dur  = intval($request->query('duration', 30));
+        return $this->apiService->streamAudio($kind, $id, $range, $dur);
+    }
+
+    /**
+     * Direct Third-Party Jobs API proxy endpoint
+     */
+    public function thirdPartyJobsProxy(Request $request): JsonResponse
+    {
+        $token = $request->query('token') ?: ($request->bearerToken() ?: $request->input('token'));
+        $payload = $request->all();
+        if ($token) {
+            $payload['token'] = $token;
+        }
+        $res = $this->apiService->getThirdPartyJobs($payload);
+        return response()->json($res);
     }
 
     /**
@@ -36,6 +52,16 @@ class ApiController extends Controller
             // ── Auth & Status ────────────────────────────────────────────────
             case 'auth_check':
                 return response()->json($this->apiService->authCheck());
+
+            // ── Third-Party Jobs ─────────────────────────────────────────────
+            case 'third_party_jobs':
+            case 'jobs':
+                $token = $request->query('token') ?: ($request->bearerToken() ?: $request->input('token'));
+                $payload = $request->all();
+                if ($token) {
+                    $payload['token'] = $token;
+                }
+                return response()->json($this->apiService->getThirdPartyJobs($payload));
 
             case 'status':
                 $status = $request->input('status', 'available');

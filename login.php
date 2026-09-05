@@ -1,7 +1,9 @@
 <?php
 session_start();
 if (isset($_SESSION['agent']) && !empty($_SESSION['agent']['session_token'])) {
-    header('Location: dashboard.php');
+    $agentCode = strtolower(trim((string)($_SESSION['agent']['agent_code'] ?? '')));
+    $isAdmin = !empty($_SESSION['agent']['is_admin']) || ($agentCode === 'admin');
+    header('Location: ' . ($isAdmin ? 'admin.php' : 'dashboard.php'));
     exit;
 }
 ?>

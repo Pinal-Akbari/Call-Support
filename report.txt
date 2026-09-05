@@ -8,8 +8,8 @@ Architecture      : Hybrid (Laravel 11 MVC + Standalone XAMPP PHP 8.2 + Asterisk
 PBX Gateway URL   : http://117.217.126.149:880/roottech/index.php
 Universal DID Mask: 912612385555
 Project Start Date: 28th August, 2026
-Report Current Date: 31st August, 2026
-Last Updated Time : 31-Aug-2026, 03:50 PM IST
+Report Current Date: 01st September, 2026
+Last Updated Time : 01-Sep-2026, 03:30 PM IST
 Status            : Active & Fully Functional
 ====================================================================================================
 
@@ -20,6 +20,7 @@ Status            : Active & Fully Functional
 2. Day-Wise Chronological Work Logs:
    - DAY 1 (28-Aug-2026): Seed Setup, 27-API Audit, IP PBX Engine, Responsive UI, Simulator & Caller 360°
    - DAY 2 (31-Aug-2026): Dashboard Routing, API Reports, Admin Auth, RBAC Permissions, Call Isolation & Blade Fix
+   - DAY 3 (01-Sep-2026): Live Database Role Assignment, Standalone XAMPP RBAC Parity & UI Alignment
 3. Complete 29-Point Telephony & CRM API Reference
 4. Telephony & CRM API Data Structures & Payload Mapping
 5. System Modules & Functional Inventory
@@ -217,6 +218,97 @@ FILES MODIFIED ON DAY 2:
 ----------------------------------------------------------------------------------------------------
 
 
+----------------------------------------------------------------------------------------------------
+[DAY 3] DATE: 1st September, 2026
+----------------------------------------------------------------------------------------------------
+MODULES WORKED ON:
+  1. MariaDB / MySQL 'agent_permissions' Live Data & RBAC Schema Verification
+  2. Interactive Admin Role Assignment Modal & Real-Time Database Persistence
+  3. Standalone XAMPP PHP & Laravel Blade Feature Parity for RBAC Enforcement
+  4. Dynamic Navigation Menu Filtering & Client Router Security Guard
+  5. Admin UI Sidebar Layout Optimization (Removed Agent Portal button & full-width Logout)
+  6. Unified Authentication, Session Management, PBX Logout & Route Guard Hardening
+  7. Universal Audio Player Real-Time Scrubber, HTTP 206 Range Seeking & Drag Engine
+  8. Automated End-to-End Verification Across Dual Runtimes (XAMPP & Laravel Artisan)
+
+DETAILED TASKS COMPLETED:
+
+  [1] MariaDB / MySQL 'agent_permissions' Live Database Verification:
+      - Validated the 'agent_permissions' table structure in MySQL/MariaDB database 'root_cms':
+        (id, agent_code UNIQUE, allowed_modules JSON/TEXT, created_at, updated_at).
+      - Confirmed live records for registered agents (1001, 1002, 1003, 1004, 1005).
+      - Resolved SQL CLI syntax error (ERROR 1064) caused by pasting interactive MariaDB prompts into the shell.
+
+  [2] Interactive Role Assignment & Live Database Persistence:
+      - Built and verified the "Permissions 🛡️" action button in Admin Console (admin.php / /admin).
+      - Clicking opens the "Agent Portal Permissions" modal with:
+        • Quick Presets: [Allow All], [Standard Agent (Default)], [Minimal / View Only].
+        • Granular Module Checkboxes: Dashboard Overview, Click-to-Call, Agents Directory,
+          Universal DID Masking, Call Recordings & Audio, API Reports & Telemetry Logs.
+      - Fixed runtime detection bug where standalone XAMPP (/cf/admin.php) improperly targeted Laravel routes.
+      - Implemented live asynchronous AJAX save via POST /api/telephony/save_permissions and api.php?action=save_permissions.
+      - Employs atomic SQL upsert (INSERT ... ON DUPLICATE KEY UPDATE allowed_modules = VALUES(allowed_modules))
+        and Eloquent AgentPermission::setPermissions($agentCode, $modules) ensuring zero data loss.
+      - Instant UI feedback: table refreshes dynamically with colored module badges without full page reload.
+
+  [3] Standalone XAMPP PHP & Laravel Blade Parity:
+      - Aligned dashboard.php with resources/views/dashboard.blade.php:
+        • Connects to database to retrieve dynamic permissions for the logged-in agent.
+        • Conditionally renders sidebar navigation menu items based on assigned modules.
+        • Injects window.ALLOWED_MODULES JavaScript global for client-side routing enforcement.
+        • Added full 'module-reports' section and inspect payload modal to dashboard.php.
+
+  [4] Client-Side Hash Router Security Guard:
+      - Enforced access restriction in assets/js/app.js & public/js/app.js:
+        If an agent manually enters a disallowed URL hash (e.g. #mapping, #reports, #recordings),
+        the router intercepts navigation, redirects to #dashboard, and displays a red toast warning:
+        "Access Denied: You do not have permission to access the '<module>' module."
+
+  [5] Admin UI Sidebar Layout Optimization:
+      - Removed the secondary "Agent Portal" navigation button from the Admin Console sidebar bottom.
+      - Replaced with a clean, full-width "Sign Out / Logout" button matching design standards.
+      - Fixed column mismatch in admin.php agents table by aligning all 8 table headers.
+
+  [6] Unified Authentication & Session Management Hardening:
+      - Synchronized login flow across standalone PHP (login.php / api.php?action=login) and Laravel (AuthController.php).
+      - Built role-aware automatic redirects:
+        • Super Admin ('admin') -> Redirects to Admin Console (admin.php / /admin).
+        • Support Agents ('1001' to '1005') -> Redirects to Agent Portal (dashboard.php / /dashboard).
+      - Refined Route Guards:
+        • If an already-authenticated admin visits login.php, redirected to admin.php.
+        • If a non-admin agent attempts to access admin.php, redirected safely to dashboard.php.
+        • If an unauthenticated user attempts to access admin.php or dashboard.php, redirected to login.php.
+      - Hardened Logout Engine (logout.php & ?action=logout):
+        • Notifies remote PBX server (?r=agent/logout) to destroy active agent session and queue membership.
+        • Flushes PHP session, removes session cookies, and redirects safely to login.php.
+
+  [7] Universal Audio Player Real-Time Scrubber & Seeking Engine:
+      - Resolved playback and seeking issues: implemented HTTP 206 Partial Content (Range request) support
+        enabling instant forward (+10s), rewind (-10s), and arbitrary seekbar scrubbing without stream resets.
+      - Integrated dynamic PCM WAV telephony synthesis fallback ensuring continuous playback even if PBX recording file is archived.
+      - Added interactive drag-to-seek support (mouse & touch drag) with glowing scrubber handle indicator.
+      - Implemented 60fps animation frame loop (`requestAnimationFrame`) providing butter-smooth progress fill.
+      - Added universal keyboard shortcuts: Space/K (Play/Pause), Left/J (Rewind 5s), Right/L (Forward 5s),
+        Up/Down (Volume +/-10%), M (Mute/Unmute), and Escape (Close Player).
+
+FILES MODIFIED ON DAY 3:
+  • admin.php
+  • dashboard.php
+  • login.php
+  • logout.php
+  • api.php
+  • app/Services/RootTechApiService.php
+  • app/Http/Controllers/ApiController.php
+  • resources/views/admin.blade.php
+  • resources/views/dashboard.blade.php
+  • assets/css/style.css & public/css/style.css
+  • assets/js/admin.js & public/js/admin.js
+  • assets/js/app.js & public/js/app.js
+  • assets/js/audio-player.js & public/js/audio-player.js
+  • report.txt
+----------------------------------------------------------------------------------------------------
+
+
 ====================================================================================================
 3. COMPLETE 29-POINT TELEPHONY & CRM API REFERENCE
 ====================================================================================================
@@ -366,6 +458,6 @@ C. REMOTE PBX & TELEPHONY GATEWAY:
    • Universal Inbound DID    : 912612385555
 
 ====================================================================================================
-                 [END OF REPORT - CLIENT HANDOVER LOG AS OF 31-AUG-2026]
+                 [END OF REPORT - CLIENT HANDOVER LOG AS OF 01-SEP-2026]
                      Maintained & Updated in Real-Time for Client Review
 ====================================================================================================

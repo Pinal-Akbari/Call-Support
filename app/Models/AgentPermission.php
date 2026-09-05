@@ -42,9 +42,13 @@ class AgentPermission extends Model
             return array_keys(self::$allModules);
         }
 
-        $record = self::where('agent_code', $agentCode)->first();
-        if ($record && is_array($record->allowed_modules)) {
-            return $record->allowed_modules;
+        try {
+            $record = self::where('agent_code', $agentCode)->first();
+            if ($record && is_array($record->allowed_modules)) {
+                return $record->allowed_modules;
+            }
+        } catch (\Throwable $e) {
+            // Graceful fallback to default modules if DB connection fails
         }
 
         return self::$defaultModules;
