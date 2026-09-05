@@ -29,6 +29,20 @@ class ApiController extends Controller
     }
 
     /**
+     * Direct Third-Party Jobs API proxy endpoint
+     */
+    public function thirdPartyJobsProxy(Request $request): JsonResponse
+    {
+        $token = $request->query('token') ?: ($request->bearerToken() ?: $request->input('token'));
+        $payload = $request->all();
+        if ($token) {
+            $payload['token'] = $token;
+        }
+        $res = $this->apiService->getThirdPartyJobs($payload);
+        return response()->json($res);
+    }
+
+    /**
      * Protected AJAX proxy handler for all telephony actions
      */
     public function handleAction(Request $request, string $action): JsonResponse|Response
@@ -38,6 +52,16 @@ class ApiController extends Controller
             // ── Auth & Status ────────────────────────────────────────────────
             case 'auth_check':
                 return response()->json($this->apiService->authCheck());
+
+            // ── Third-Party Jobs ─────────────────────────────────────────────
+            case 'third_party_jobs':
+            case 'jobs':
+                $token = $request->query('token') ?: ($request->bearerToken() ?: $request->input('token'));
+                $payload = $request->all();
+                if ($token) {
+                    $payload['token'] = $token;
+                }
+                return response()->json($this->apiService->getThirdPartyJobs($payload));
 
             case 'status':
                 $status = $request->input('status', 'available');

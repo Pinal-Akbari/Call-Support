@@ -28,6 +28,9 @@ Route::post('/status', [AuthController::class, 'updateStatus'])->name('agent.sta
 // Public Audio Streaming Route for HTML5 Audio Player
 Route::get('/api/telephony/stream_audio', [ApiController::class, 'streamAudio'])->name('api.telephony.stream');
 
+// Third-Party Jobs API Direct Endpoint (matches /api/third-party/jobs with query/Bearer token)
+Route::match(['get', 'post'], '/api/third-party/jobs', [ApiController::class, 'thirdPartyJobsProxy'])->name('api.third_party.jobs');
+
 // RESTful Agent Permissions API (MySQL root_cms database)
 Route::get('/api/permissions/modules/list', [PermissionApiController::class, 'modules'])->name('api.permissions.modules');
 Route::get('/api/permissions', [PermissionApiController::class, 'index'])->name('api.permissions.index');

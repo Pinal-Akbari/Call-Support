@@ -21,6 +21,10 @@ const adminModuleTitles = {
     title: 'Admin Overview',
     sub: 'Telephony PBX administration, agent extensions, DID routing, and call auditing'
   },
+  'module-jobs': {
+    title: 'Third-Party Jobs & Bookings',
+    sub: 'CareFirst Global live job dispatch, customer calling & service tracking'
+  },
   'module-agents': {
     title: 'Agents & Extensions',
     sub: 'Manage support agent extensions, SIP passwords, and monitor real-time registered peers on PBX'
@@ -53,6 +57,9 @@ const adminModuleTitles = {
 
 const hashModuleMap = {
   'dashboard': 'module-dashboard',
+  'jobs': 'module-jobs',
+  'third-party-jobs': 'module-jobs',
+  'orders': 'module-jobs',
   'agents': 'module-agents',
   'recordings': 'module-recordings',
   'mapping': 'module-mapping',
@@ -107,6 +114,8 @@ function switchModule(targetId, updateHash = true) {
   if (targetId === 'module-dashboard') {
     loadAgentsList();
     loadRecordings();
+  } else if (targetId === 'module-jobs') {
+    loadThirdPartyJobs();
   } else if (targetId === 'module-agents') {
     loadAgentsList();
   } else if (targetId === 'module-recordings' || targetId === 'module-reports') {
@@ -126,6 +135,8 @@ function refreshAdminDashboard() {
     loadAgentsList();
     loadRecordings();
     showToast('Refreshed Dashboard overview data', 'info');
+  } else if (currentId === 'module-jobs') {
+    loadThirdPartyJobs(true);
   } else if (currentId === 'module-agents') {
     loadAgentsList();
     showToast('Refreshed Agents & Extensions list', 'info');
@@ -186,6 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Activate the resolved tab immediately
   switchModule(resolvedModule, false);
+  if (resolvedModule !== 'module-jobs') {
+    loadThirdPartyJobs();
+  }
 
   window.addEventListener('popstate', () => {
     const hash = window.location.hash.replace(/^#/, '').toLowerCase();
@@ -1564,4 +1578,551 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// ============================================================================
+// THIRD-PARTY JOBS & BOOKINGS MODULE (CAREFIRST GLOBAL API)
+// ============================================================================
+
+let rawJobsList = [];
+let filteredJobsList = [];
+let currentViewingJob = null;
+let jobsTokenVisible = false;
+const CAREFIRST_DEFAULT_TOKEN = 'K31WQXjuCTR5JVuYl84ghVeRHMIDbtrovwDWOO2opbuevCvw5P';
+const CAREFIRST_API_ENDPOINT = 'https://portal.carefirstglobal.com/api/third-party/jobs';
+
+async function loadThirdPartyJobs(isManual = false) {
+  const tbody = document.getElementById('jobsTableBody');
+  const syncBtn = document.getElementById('btnRefreshJobs');
+  const badgeEl = document.getElementById('jobsCountBadge');
+
+  if (syncBtn) {
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = '<i class="fa-solid fa-rotate fa-spin"></i> <span>Syncing...</span>';
+  }
+  if (tbody && (!rawJobsList || rawJobsList.length === 0)) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:36px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--primary); margin-bottom:10px; display:block;"></i> Fetching real-time orders from CareFirst Global...</td></tr>`;
+  }
+
+  try {
+    const url = getAdminApiUrl('third_party_jobs');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken(),
+      },
+      body: JSON.stringify({
+        token: CAREFIRST_DEFAULT_TOKEN
+      })
+    });
+
+    const data = await res.json();
+    if (data && data.success && Array.isArray(data.data)) {
+      rawJobsList = data.data;
+
+      // Update KPI counters
+      updateJobsKpiCards(rawJobsList);
+
+      // Populate zone/provider filter dropdown
+      populateJobProviderFilter(rawJobsList);
+
+      // Apply current filters & render table
+      filterJobs();
+
+      // Update sidebar badge
+      if (badgeEl) {
+        badgeEl.textContent = rawJobsList.length;
+        badgeEl.style.display = 'inline-block';
+      }
+
+      const statusBadge = document.getElementById('jobsApiStatusBadge');
+      if (statusBadge) {
+        statusBadge.className = 'badge badge-emerald';
+        statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Live Connected';
+      }
+
+      if (isManual) {
+        showToast(`Synced ${rawJobsList.length} live orders from CareFirst API!`, 'success');
+      }
+    } else {
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--accent-rose);"><i class="fa-solid fa-triangle-exclamation" style="font-size:22px; margin-bottom:8px; display:block;"></i> Failed to load jobs: ${escapeHtml(data.message || 'Unknown response')}</td></tr>`;
+      }
+      if (isManual) showToast(data.message || 'Failed to fetch jobs', 'error');
+    }
+  } catch (err) {
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--accent-rose);"><i class="fa-solid fa-circle-exclamation" style="font-size:22px; margin-bottom:8px; display:block;"></i> Network error connecting to Jobs API proxy</td></tr>`;
+    }
+    if (isManual) showToast('Network error loading jobs', 'error');
+  } finally {
+    if (syncBtn) {
+      syncBtn.disabled = false;
+      syncBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> <span>Sync Orders</span>';
+    }
+  }
+}
+
+function updateJobsKpiCards(jobs) {
+  const totalEl = document.getElementById('jobsTotalCount');
+  const pendingEl = document.getElementById('jobsPendingCount');
+  const assignedEl = document.getElementById('jobsAssignedCount');
+  const priorityEl = document.getElementById('jobsPriorityCount');
+
+  if (totalEl) totalEl.textContent = jobs.length;
+
+  const pending = jobs.filter(j => String(j.status || '').toLowerCase() === 'pending').length;
+  if (pendingEl) pendingEl.textContent = pending;
+
+  const assigned = jobs.filter(j => j.service_person && j.service_person !== 'Unassigned' && j.service_person !== '-').length;
+  if (assignedEl) assignedEl.textContent = assigned;
+
+  const priority = jobs.filter(j => {
+    const s = (j.job_service || '').toLowerCase();
+    return s.includes('urgent') || s.includes('priority') || String(j.needs_attention || '').toLowerCase() === 'yes';
+  }).length;
+  if (priorityEl) priorityEl.textContent = priority;
+}
+
+function populateJobProviderFilter(jobs) {
+  const select = document.getElementById('jobsProviderFilter');
+  if (!select) return;
+  const currentVal = select.value;
+  const providers = new Set();
+  jobs.forEach(j => {
+    if (j.service_provider && j.service_provider !== '-') {
+      providers.add(j.service_provider.trim());
+    }
+  });
+
+  let opts = '<option value="">All Zones / Areas</option>';
+  Array.from(providers).sort().forEach(p => {
+    opts += `<option value="${escapeHtml(p)}" ${p === currentVal ? 'selected' : ''}>${escapeHtml(p)}</option>`;
+  });
+  select.innerHTML = opts;
+}
+
+function filterJobs() {
+  const search = (document.getElementById('jobsSearchInput')?.value || '').trim().toLowerCase();
+  const statusFilter = (document.getElementById('jobsStatusFilter')?.value || '').trim().toLowerCase();
+  const providerFilter = (document.getElementById('jobsProviderFilter')?.value || '').trim().toLowerCase();
+  const assignmentFilter = (document.getElementById('jobsAssignmentFilter')?.value || '').trim().toLowerCase();
+
+  filteredJobsList = rawJobsList.filter(job => {
+    if (statusFilter && String(job.status || '').trim().toLowerCase() !== statusFilter) {
+      return false;
+    }
+    if (providerFilter && String(job.service_provider || '').trim().toLowerCase() !== providerFilter) {
+      return false;
+    }
+    const person = String(job.service_person || '').trim().toLowerCase();
+    const isAssigned = person && person !== 'unassigned' && person !== '-';
+    if (assignmentFilter === 'assigned' && !isAssigned) return false;
+    if (assignmentFilter === 'unassigned' && isAssigned) return false;
+
+    if (search) {
+      const matchText = [
+        job.order_id,
+        job.job_service,
+        job.customer_name,
+        job.customer_mobile,
+        job.contact_name,
+        job.contact_number,
+        job.service_person,
+        job.service_provider,
+        job.address,
+        job.pincode
+      ].join(' ').toLowerCase();
+      if (!matchText.includes(search)) return false;
+    }
+    return true;
+  });
+
+  renderJobsTable();
+}
+
+function resetJobsFilters() {
+  const searchInput = document.getElementById('jobsSearchInput');
+  const statusFilter = document.getElementById('jobsStatusFilter');
+  const providerFilter = document.getElementById('jobsProviderFilter');
+  const assignmentFilter = document.getElementById('jobsAssignmentFilter');
+
+  if (searchInput) searchInput.value = '';
+  if (statusFilter) statusFilter.value = '';
+  if (providerFilter) providerFilter.value = '';
+  if (assignmentFilter) assignmentFilter.value = '';
+
+  filterJobs();
+}
+
+function renderJobsTable() {
+  const tbody = document.getElementById('jobsTableBody');
+  const summaryEl = document.getElementById('jobsTableSummary');
+  if (!tbody) return;
+
+  if (summaryEl) {
+    summaryEl.textContent = `Showing ${filteredJobsList.length} of ${rawJobsList.length} orders`;
+  }
+
+  if (filteredJobsList.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);"><i class="fa-solid fa-box-open" style="font-size:24px; margin-bottom:8px; display:block;"></i> No orders match your current search/filters.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filteredJobsList.map(job => {
+    const isUrgent = (job.job_service || '').toLowerCase().includes('urgent') || (job.job_service || '').toLowerCase().includes('priority');
+    const isAssigned = job.service_person && job.service_person !== 'Unassigned' && job.service_person !== '-';
+    const hasNotes = job.message && job.message !== '-';
+    
+    let statusBadgeClass = 'badge-amber';
+    if (String(job.status || '').toLowerCase() === 'accepted') statusBadgeClass = 'badge-cyan';
+    if (String(job.status || '').toLowerCase() === 'completed') statusBadgeClass = 'badge-emerald';
+    if (String(job.status || '').toLowerCase() === 'cancelled') statusBadgeClass = 'badge-rose';
+
+    const shortAddress = [
+      job.address && job.address !== '-' ? job.address : '',
+      job.pincode && job.pincode !== '-' ? `(${job.pincode})` : ''
+    ].filter(Boolean).join(' ');
+
+    return `
+      <tr>
+        <td style="white-space:nowrap;">
+          <a href="javascript:void(0)" onclick="openJobDetailsModal('${escapeHtml(job.order_id)}')" style="font-weight:700; color:var(--accent-cyan); font-family:monospace; text-decoration:none; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;" title="View Order Details">
+            <i class="fa-solid fa-file-lines" style="font-size:11px;"></i>
+            ${escapeHtml(job.order_id)}
+          </a>
+        </td>
+        <td>
+          <div style="font-weight:600; color:var(--text-bright); font-size:13px;">
+            ${escapeHtml(job.job_service || '-')}
+          </div>
+          <div style="display:flex; gap:4px; margin-top:3px; flex-wrap:wrap;">
+            ${isUrgent ? '<span class="badge badge-rose" style="font-size:10px; padding:1px 5px;"><i class="fa-solid fa-bolt"></i> Urgent</span>' : ''}
+            ${String(job.needs_attention || '').toLowerCase() === 'yes' ? '<span class="badge badge-amber" style="font-size:10px; padding:1px 5px;"><i class="fa-solid fa-triangle-exclamation"></i> Attention</span>' : ''}
+            ${hasNotes ? `<span class="badge badge-purple" style="font-size:10px; padding:1px 5px;" title="${escapeHtml(job.message)}"><i class="fa-solid fa-notes-medical"></i> Clinical Note</span>` : ''}
+          </div>
+        </td>
+        <td>
+          <div style="font-weight:600; color:var(--text-bright); font-size:13px;">
+            <i class="fa-regular fa-user" style="color:var(--text-muted); margin-right:4px; font-size:11px;"></i>${escapeHtml(job.customer_name || '-')}
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
+            <a href="javascript:void(0)" onclick="callCustomerFromJob('${escapeHtml(job.customer_mobile)}', '${escapeHtml(job.order_id)}', '${escapeHtml(job.customer_name)}')" style="font-family:monospace; font-size:12px; font-weight:700; color:var(--accent-cyan); text-decoration:none;" title="Call ${escapeHtml(job.customer_name || 'Customer')}">
+              ${escapeHtml(job.customer_mobile || '-')}
+            </a>
+            ${job.customer_mobile && job.customer_mobile !== '-' ? `
+              <button type="button" class="btn btn-secondary btn-sm" onclick="callCustomerFromJob('${escapeHtml(job.customer_mobile)}', '${escapeHtml(job.order_id)}', '${escapeHtml(job.customer_name)}')" title="1-Click Call Customer" style="padding:1px 6px; font-size:10px; color:var(--accent-emerald); border-color:rgba(16,185,129,0.4); border-radius:var(--radius-sm);">
+                <i class="fa-solid fa-phone"></i>
+              </button>
+            ` : ''}
+          </div>
+        </td>
+        <td>
+          <div style="font-size:12px; font-weight:600; color:var(--text-bright);">
+            <i class="fa-regular fa-calendar" style="color:var(--accent-cyan); margin-right:4px;"></i>${escapeHtml(job.slot_date || '-')}
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+            <i class="fa-regular fa-clock" style="margin-right:4px;"></i>${escapeHtml(job.slot_time || '-')}
+          </div>
+        </td>
+        <td>
+          <div>
+            <span class="badge badge-cyan" style="font-size:11px; font-weight:600;">
+              <i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>${escapeHtml(job.service_provider || '-')}
+            </span>
+            ${job.pincode && job.pincode !== '-' ? `<span style="font-size:11px; color:var(--text-muted); margin-left:4px; font-weight:600;">(${escapeHtml(job.pincode)})</span>` : ''}
+          </div>
+          ${job.address && job.address !== '-' ? `
+            <div style="font-size:11px; color:var(--text-muted); margin-top:3px; max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(job.address)}">
+              ${escapeHtml(job.address)}
+            </div>
+          ` : ''}
+        </td>
+        <td>
+          ${isAssigned ? `
+            <span class="badge badge-emerald" style="font-size:11px;">
+              <i class="fa-solid fa-user-check" style="margin-right:4px;"></i>${escapeHtml(job.service_person)}
+            </span>
+          ` : `
+            <span class="badge badge-amber" style="font-size:11px;">
+              <i class="fa-solid fa-user-clock" style="margin-right:4px;"></i>Unassigned
+            </span>
+          `}
+        </td>
+        <td>
+          <span class="badge ${statusBadgeClass}" style="font-size:11px;">
+            ${escapeHtml(job.status || 'Pending')}
+          </span>
+        </td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex; gap:5px;">
+            ${job.customer_mobile && job.customer_mobile !== '-' ? `
+              <button type="button" class="btn btn-sm" onclick="callCustomerFromJob('${escapeHtml(job.customer_mobile)}', '${escapeHtml(job.order_id)}', '${escapeHtml(job.customer_name)}')" title="Call Customer" style="padding:4px 8px; font-size:11px; background:#10b981; color:#fff; border:none; border-radius:var(--radius-sm);">
+                <i class="fa-solid fa-phone"></i>
+              </button>
+            ` : ''}
+            <button type="button" class="btn btn-secondary btn-sm" onclick="maskAndRouteJob('${escapeHtml(job.order_id)}', '${escapeHtml(job.customer_mobile)}', '${escapeHtml(job.customer_name)}', '${escapeHtml(job.service_person)}')" title="Configure DID Masking" style="padding:4px 8px; font-size:11px;">
+              <i class="fa-solid fa-mask"></i>
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openJobDetailsModal('${escapeHtml(job.order_id)}')" title="View Order Details" style="padding:4px 8px; font-size:11px;">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openJobDetailsModal(orderId) {
+  const job = rawJobsList.find(j => j.order_id === orderId);
+  if (!job) {
+    showToast('Job order not found', 'error');
+    return;
+  }
+  currentViewingJob = job;
+
+  document.getElementById('modalJobOrderId').textContent = `Order #${job.order_id}`;
+  document.getElementById('modalJobService').textContent = job.job_service || '-';
+
+  const statusBadge = document.getElementById('modalJobStatusBadge');
+  if (statusBadge) {
+    statusBadge.textContent = job.status || 'Pending';
+    statusBadge.className = 'badge ' + (String(job.status || '').toLowerCase() === 'completed' ? 'badge-emerald' : (String(job.status || '').toLowerCase() === 'accepted' ? 'badge-cyan' : 'badge-amber'));
+  }
+
+  const attentionBadge = document.getElementById('modalJobNeedsAttentionBadge');
+  if (attentionBadge) {
+    attentionBadge.style.display = String(job.needs_attention || '').toLowerCase() === 'yes' ? 'inline-block' : 'none';
+  }
+
+  const urgentBadge = document.getElementById('modalJobUrgentBadge');
+  if (urgentBadge) {
+    const isUrgent = (job.job_service || '').toLowerCase().includes('urgent') || (job.job_service || '').toLowerCase().includes('priority');
+    urgentBadge.style.display = isUrgent ? 'inline-block' : 'none';
+  }
+
+  // Address parts - filter out "-" or empty
+  const addressParts = [];
+  if (job.house_no && job.house_no !== '-') addressParts.push(`House/Flat: ${job.house_no}`);
+  if (job.address && job.address !== '-') addressParts.push(job.address);
+  if (job.address_line_2 && job.address_line_2 !== '-') addressParts.push(job.address_line_2);
+  if (job.landmark && job.landmark !== '-') addressParts.push(`Landmark: ${job.landmark}`);
+  if (job.pincode && job.pincode !== '-') addressParts.push(`PIN: ${job.pincode}`);
+  const fullAddress = addressParts.join(', ');
+
+  const mapsQuery = encodeURIComponent([job.house_no !== '-' ? job.house_no : '', job.address !== '-' ? job.address : '', job.service_provider !== '-' ? job.service_provider : '', job.pincode !== '-' ? job.pincode : ''].filter(Boolean).join(' '));
+
+  // Determine if alternate contact is different from primary customer
+  const hasAltContact = (job.contact_name && job.contact_name !== '-' && job.contact_name !== job.customer_name) ||
+                        (job.contact_number && job.contact_number !== '-' && job.contact_number !== job.customer_mobile);
+
+  // Determine if company/gst exist
+  const hasCompany = (job.company_name && job.company_name !== '-') || (job.gst_number && job.gst_number !== '-');
+
+  // Determine if patient/special notes exist
+  const hasNotes = (job.message && job.message !== '-') || (job.attention_message && job.attention_message !== '-');
+
+  const bodyEl = document.getElementById('modalJobBody');
+  if (bodyEl) {
+    bodyEl.innerHTML = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:14px;">
+        
+        <!-- Customer & Contact Box -->
+        <div style="padding:14px; background:var(--bg-dark); border-radius:var(--radius-md); border:1px solid var(--border-glass);">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--accent-cyan); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-user"></i> Customer & Contact
+          </div>
+          <div style="display:grid; grid-template-columns:110px 1fr; gap:8px; font-size:12px; align-items:center;">
+            <span style="color:var(--text-muted);">Customer:</span>
+            <span style="font-weight:600; color:var(--text-bright); font-size:13px;">${escapeHtml(job.customer_name || '-')}</span>
+
+            <span style="color:var(--text-muted);">Mobile:</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-family:monospace; font-weight:700; color:var(--accent-cyan); font-size:13px;">${escapeHtml(job.customer_mobile || '-')}</span>
+              ${job.customer_mobile && job.customer_mobile !== '-' ? `
+                <button type="button" class="btn btn-secondary btn-sm" onclick="callCustomerFromJob('${escapeHtml(job.customer_mobile)}', '${escapeHtml(job.order_id)}', '${escapeHtml(job.customer_name)}')" title="Call Customer" style="padding:2px 7px; font-size:11px; color:var(--accent-emerald); border-color:rgba(16,185,129,0.4);">
+                  <i class="fa-solid fa-phone"></i>
+                </button>
+              ` : ''}
+            </div>
+
+            <span style="color:var(--text-muted);">Address Type:</span>
+            <span style="color:var(--text-bright);">${escapeHtml(job.address_type || 'Home')}</span>
+
+            ${hasAltContact ? `
+              <span style="color:var(--text-muted);">Alt Contact:</span>
+              <span style="color:var(--text-bright);">${escapeHtml(job.contact_name || '')} ${job.contact_number && job.contact_number !== '-' ? '(<span style="font-family:monospace;">' + escapeHtml(job.contact_number) + '</span>)' : ''}</span>
+            ` : ''}
+
+            ${hasCompany ? `
+              <span style="color:var(--text-muted);">Company / GST:</span>
+              <span style="color:var(--text-bright);">${escapeHtml(job.company_name !== '-' ? job.company_name : '')} ${job.gst_number && job.gst_number !== '-' ? '(' + escapeHtml(job.gst_number) + ')' : ''}</span>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Schedule & Dispatch Box -->
+        <div style="padding:14px; background:var(--bg-dark); border-radius:var(--radius-md); border:1px solid var(--border-glass);">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--primary); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-calendar-check"></i> Schedule & Assignment
+          </div>
+          <div style="display:grid; grid-template-columns:110px 1fr; gap:8px; font-size:12px; align-items:center;">
+            <span style="color:var(--text-muted);">Slot Date:</span>
+            <span style="font-weight:600; color:var(--text-bright);"><i class="fa-regular fa-calendar" style="color:var(--accent-cyan); margin-right:5px;"></i>${escapeHtml(job.slot_date || '-')}</span>
+
+            <span style="color:var(--text-muted);">Slot Time:</span>
+            <span style="font-weight:600; color:var(--text-bright);"><i class="fa-regular fa-clock" style="color:var(--accent-cyan); margin-right:5px;"></i>${escapeHtml(job.slot_time || '-')}</span>
+
+            <span style="color:var(--text-muted);">Service Area:</span>
+            <span class="badge badge-cyan" style="font-size:11px; width:fit-content;"><i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>${escapeHtml(job.service_provider || '-')}</span>
+
+            <span style="color:var(--text-muted);">Assigned Staff:</span>
+            <span style="font-weight:600; color:${job.service_person && job.service_person !== 'Unassigned' && job.service_person !== '-' ? 'var(--accent-emerald)' : 'var(--accent-amber)'};">
+              <i class="fa-solid ${job.service_person && job.service_person !== 'Unassigned' && job.service_person !== '-' ? 'fa-user-check' : 'fa-user-clock'}" style="margin-right:4px;"></i>
+              ${escapeHtml(job.service_person || 'Unassigned')}
+            </span>
+
+            ${job.assignment_type && job.assignment_type !== '-' && job.assignment_type !== 'Unassigned' ? `
+              <span style="color:var(--text-muted);">Dispatch Type:</span>
+              <span style="color:var(--text-bright);">${escapeHtml(job.assignment_type)}</span>
+            ` : ''}
+
+            ${job.job_accepted && job.job_accepted !== '-' && job.job_accepted !== 'Pending' ? `
+              <span style="color:var(--text-muted);">Staff Status:</span>
+              <span style="color:var(--text-bright);">${escapeHtml(job.job_accepted)}</span>
+            ` : ''}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Service Address Box -->
+      <div style="padding:14px; background:var(--bg-dark); border-radius:var(--radius-md); border:1px solid var(--border-glass); margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--accent-emerald); display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-location-dot"></i> Service Address (${escapeHtml(job.address_type || 'Home')})
+          </div>
+          <a href="https://www.google.com/maps/search/?api=1&query=${mapsQuery}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:11px; padding:3px 8px; text-decoration:none;">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Google Maps
+          </a>
+        </div>
+        <div style="font-size:13px; color:var(--text-bright); line-height:1.5;">
+          ${escapeHtml(fullAddress || 'No address specified')}
+        </div>
+      </div>
+
+      <!-- Notes / Clinical / Special Instructions Box -->
+      ${hasNotes ? `
+        <div style="padding:14px; background:rgba(245, 158, 11, 0.08); border-radius:var(--radius-md); border:1px solid rgba(245, 158, 11, 0.3);">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--accent-amber); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-notes-medical"></i> Special Instructions & Patient Notes
+          </div>
+          ${job.message && job.message !== '-' ? `<div style="font-size:12px; color:var(--text-bright); line-height:1.4;"><strong>Notes:</strong> ${escapeHtml(job.message)}</div>` : ''}
+          ${job.attention_message && job.attention_message !== '-' ? `<div style="font-size:12px; color:var(--accent-rose); margin-top:4px;"><strong>Attention Notice:</strong> ${escapeHtml(job.attention_message)}</div>` : ''}
+        </div>
+      ` : ''}
+    `;
+  }
+
+  const modal = document.getElementById('jobDetailsModal');
+  if (modal) {
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+  }
+}
+
+function closeJobDetailsModal() {
+  const modal = document.getElementById('jobDetailsModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+  currentViewingJob = null;
+}
+
+function triggerCallFromModal() {
+  if (!currentViewingJob || !currentViewingJob.customer_mobile) {
+    showToast('No customer phone number for this job', 'error');
+    return;
+  }
+  callCustomerFromJob(currentViewingJob.customer_mobile, currentViewingJob.order_id, currentViewingJob.customer_name);
+}
+
+function triggerMaskFromModal() {
+  if (!currentViewingJob) return;
+  closeJobDetailsModal();
+  maskAndRouteJob(
+    currentViewingJob.order_id,
+    currentViewingJob.customer_mobile,
+    currentViewingJob.customer_name,
+    currentViewingJob.service_person
+  );
+}
+
+function callCustomerFromJob(phone, orderId, customerName) {
+  if (!phone || phone === '-') {
+    showToast('No valid customer phone number provided', 'error');
+    return;
+  }
+  showToast(`Initiating call to ${customerName || 'Customer'} (${phone})...`, 'info');
+  if (window.telephonySimulator && typeof window.telephonySimulator.initiateOutbound === 'function') {
+    window.telephonySimulator.initiateOutbound({
+      target: 'customer',
+      phoneNumber: phone,
+      bookingId: orderId,
+      customerName: customerName || 'Customer',
+      sourceExtension: '1001'
+    });
+  } else {
+    window.location.href = `tel:${phone}`;
+  }
+}
+
+function maskAndRouteJob(orderId, customerPhone, customerName, maidName) {
+  switchModule('module-mapping');
+  const bId = document.getElementById('mapBookingId');
+  const cNum = document.getElementById('mapCustomerNumber');
+  const cId = document.getElementById('mapCustomerId');
+  const mId = document.getElementById('mapMaidId');
+  if (bId) bId.value = orderId || '';
+  if (cNum) cNum.value = customerPhone || '';
+  if (cId) cId.value = customerName || '';
+  if (mId && maidName && maidName !== 'Unassigned') mId.value = maidName;
+  showToast(`Pre-filled DID Masking for Order #${orderId}`, 'info');
+}
+
+function exportJobsCsv() {
+  const listToExport = filteredJobsList.length > 0 ? filteredJobsList : rawJobsList;
+  if (!listToExport || listToExport.length === 0) {
+    showToast('No jobs available to export', 'error');
+    return;
+  }
+
+  const headers = ['Order ID', 'Service', 'Customer Name', 'Mobile', 'Slot Date', 'Slot Time', 'Provider Zone', 'Assigned Staff', 'Status', 'Address', 'Pincode', 'Notes'];
+  const rows = listToExport.map(j => [
+    `"${(j.order_id || '').replace(/"/g, '""')}"`,
+    `"${(j.job_service || '').replace(/"/g, '""')}"`,
+    `"${(j.customer_name || '').replace(/"/g, '""')}"`,
+    `"${(j.customer_mobile || '').replace(/"/g, '""')}"`,
+    `"${(j.slot_date || '').replace(/"/g, '""')}"`,
+    `"${(j.slot_time || '').replace(/"/g, '""')}"`,
+    `"${(j.service_provider || '').replace(/"/g, '""')}"`,
+    `"${(j.service_person || '').replace(/"/g, '""')}"`,
+    `"${(j.status || '').replace(/"/g, '""')}"`,
+    `"${(j.address || '').replace(/"/g, '""')}"`,
+    `"${(j.pincode || '').replace(/"/g, '""')}"`,
+    `"${(j.message || '').replace(/"/g, '""')}"`
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `carefirst_jobs_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast(`Exported ${listToExport.length} jobs to CSV!`, 'success');
 }

@@ -583,4 +583,46 @@ class RootTechApiService
             return ['success' => false, 'message' => $e->getMessage()];
         }
     }
+
+    /**
+     * Fetch Third-Party Jobs (CareFirst Global API: /api/third-party/jobs)
+     */
+    public function getThirdPartyJobs(array $params = []): array
+    {
+        $url   = $params['url'] ?? config('roottech.jobs_url', 'https://portal.carefirstglobal.com/api/third-party/jobs');
+        $token = $params['token'] ?? config('roottech.jobs_token', 'K31WQXjuCTR5JVuYl84ghVeRHMIDbtrovwDWOO2opbuevCvw5P');
+
+        try {
+            $payload = array_merge(['token' => $token], $params);
+            unset($payload['url']);
+
+            // Send POST request with both Bearer header and payload token
+            $response = Http::withoutVerifying()
+                ->withToken($token)
+                ->timeout(15)
+                ->acceptJson()
+                ->post($url, $payload);
+
+            $json = $response->json();
+            if (is_array($json)) {
+                return $json;
+            }
+
+            return [
+                'success' => false,
+                'message' => 'Invalid response from jobs API',
+                'data'    => [],
+                'count'   => 0,
+                'raw'     => $response->body(),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("Failed to fetch third party jobs: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Network error connecting to Third-Party Jobs API: ' . $e->getMessage(),
+                'data'    => [],
+                'count'   => 0,
+            ];
+        }
+    }
 }

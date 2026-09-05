@@ -57,6 +57,12 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
         <span>Admin Overview</span>
       </div>
 
+      <div class="menu-item" data-module="module-jobs">
+        <i class="fa-solid fa-briefcase"></i>
+        <span>Third-Party Jobs</span>
+        <span class="badge badge-emerald" id="jobsCountBadge" style="margin-left:auto; font-size:10px; padding:2px 6px; border-radius:10px; display:none;">0</span>
+      </div>
+
       <div class="menu-item" data-module="module-agents">
         <i class="fa-solid fa-users"></i>
         <span>Agents & Extensions</span>
@@ -352,6 +358,150 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
 
       </div>
 
+    </section>
+
+    <!-- MODULE: THIRD-PARTY JOBS & BOOKINGS (CAREFIRST GLOBAL API) -->
+    <section id="module-jobs" class="module-section">
+      <!-- 4 KPI Stats Cards -->
+      <div class="stats-grid" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <div class="stat-icon cyan">
+            <i class="fa-solid fa-clipboard-list"></i>
+          </div>
+          <div>
+            <div class="stat-label">Total Jobs / Orders</div>
+            <div class="stat-value" id="jobsTotalCount">--</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">CareFirst Global Feed</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon amber">
+            <i class="fa-solid fa-clock"></i>
+          </div>
+          <div>
+            <div class="stat-label">Pending Dispatch</div>
+            <div class="stat-value" id="jobsPendingCount">--</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Awaiting Service Start</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon emerald">
+            <i class="fa-solid fa-user-check"></i>
+          </div>
+          <div>
+            <div class="stat-label">Assigned Staff</div>
+            <div class="stat-value" id="jobsAssignedCount">--</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Allocated Helpers / Maids</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon rose">
+            <i class="fa-solid fa-bolt"></i>
+          </div>
+          <div>
+            <div class="stat-label">Priority / Urgent</div>
+            <div class="stat-value" id="jobsPriorityCount">--</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Urgent Cleaning Orders</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Jobs Table Card -->
+      <div class="glass-panel card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 14px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <h3 class="card-title" style="margin-bottom: 0;">
+                <i class="fa-solid fa-briefcase" style="color: var(--accent-cyan);"></i>
+                CareFirst Global — Service Orders & Bookings
+              </h3>
+              <span id="jobsApiStatusBadge" class="badge badge-emerald" style="font-size: 11px; display: inline-flex; align-items: center; gap: 5px;">
+                <i class="fa-solid fa-circle-check"></i> Live Connected
+              </span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">Real-time service orders, customer details, schedule dispatch, and 1-click calling.</p>
+          </div>
+
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="exportJobsCsv()" title="Export Jobs as CSV">
+              <i class="fa-solid fa-file-csv"></i>
+              <span>Export CSV</span>
+            </button>
+            <button type="button" id="btnRefreshJobs" class="btn btn-primary btn-sm" onclick="loadThirdPartyJobs(true)" title="Fetch latest jobs from API">
+              <i class="fa-solid fa-rotate"></i>
+              <span>Sync Orders</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+          <div style="position: relative; min-width: 260px; flex: 1;">
+            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px;"></i>
+            <input type="text" id="jobsSearchInput" class="form-input" placeholder="Search order ID, customer name, mobile, address..." style="padding-left: 38px; font-size: 13px; height: 40px;" oninput="filterJobs()">
+          </div>
+
+          <select id="jobsStatusFilter" class="form-input form-select" style="width: 150px; font-size: 13px; height: 40px;" onchange="filterJobs()">
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Accepted">Accepted</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+
+          <select id="jobsProviderFilter" class="form-input form-select" style="width: 170px; font-size: 13px; height: 40px;" onchange="filterJobs()">
+            <option value="">All Zones / Areas</option>
+          </select>
+
+          <select id="jobsAssignmentFilter" class="form-input form-select" style="width: 150px; font-size: 13px; height: 40px;" onchange="filterJobs()">
+            <option value="">All Staff</option>
+            <option value="Assigned">Assigned</option>
+            <option value="Unassigned">Unassigned</option>
+          </select>
+
+          <button type="button" class="btn btn-secondary btn-sm" onclick="resetJobsFilters()" title="Reset Filters" style="height: 40px; padding: 0 16px;">
+            <i class="fa-solid fa-filter-circle-xmark"></i>
+            <span>Reset</span>
+          </button>
+        </div>
+
+        <!-- Table Container -->
+        <div class="table-container">
+          <table class="custom-table" id="jobsTable">
+            <thead>
+              <tr>
+                <th style="width: 140px; white-space: nowrap;">Order ID</th>
+                <th>Service Requested</th>
+                <th>Customer & Phone</th>
+                <th style="width: 130px;">Schedule Slot</th>
+                <th>Location / Area</th>
+                <th>Assigned Staff</th>
+                <th>Status</th>
+                <th style="text-align: right; width: 130px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="jobsTableBody">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                  <i class="fa-solid fa-spinner fa-spin" style="font-size: 24px; color: var(--primary); margin-bottom: 10px; display: block;"></i>
+                  Loading Orders from CareFirst Global...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer Info / Pagination Strip -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; gap: 10px;">
+          <div id="jobsTableSummary">Showing 0 of 0 jobs</div>
+          <div>
+            <span class="badge badge-purple" style="font-size: 11px;">CareFirst Global Dispatch Gateway</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- MODULE 2: AGENTS & EXTENSIONS -->
@@ -1205,6 +1355,52 @@ $baseUrl = 'http://117.217.126.149:880/roottech/index.php';
         <button type="button" class="btn btn-secondary" onclick="closeCreateInboundModal()" style="width: 100%;">Cancel</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- THIRD-PARTY JOB DETAILS MODAL              -->
+<!-- ========================================== -->
+<div id="jobDetailsModal" class="modal-overlay" style="display: none;">
+  <div class="glass-panel modal-box modal-animated" style="max-width: 760px; width: 95%;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; border-bottom: 1px solid var(--border-glass); padding-bottom: 14px;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <h3 class="card-title" id="modalJobOrderId" style="margin-bottom: 0;">Order #---</h3>
+          <span id="modalJobStatusBadge" class="badge badge-amber">Pending</span>
+          <span id="modalJobNeedsAttentionBadge" class="badge badge-rose" style="display: none;">
+            <i class="fa-solid fa-triangle-exclamation"></i> Needs Attention
+          </span>
+          <span id="modalJobUrgentBadge" class="badge badge-rose" style="display: none;">
+            <i class="fa-solid fa-bolt"></i> Urgent Priority
+          </span>
+        </div>
+        <p id="modalJobService" style="font-size: 13px; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">Service Description</p>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closeJobDetailsModal()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div id="modalJobBody" style="max-height: 65vh; overflow-y: auto; padding-right: 4px;">
+      <!-- Populated dynamically by admin.js -->
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; border-top: 1px solid var(--border-glass); padding-top: 14px; flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button type="button" id="modalBtnCallCustomer" class="btn btn-primary btn-sm" onclick="triggerCallFromModal()">
+          <i class="fa-solid fa-phone"></i>
+          <span>Call Customer</span>
+        </button>
+        <button type="button" id="modalBtnMaskDid" class="btn btn-secondary btn-sm" onclick="triggerMaskFromModal()">
+          <i class="fa-solid fa-mask"></i>
+          <span>Configure DID Masking</span>
+        </button>
+      </div>
+      <div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeJobDetailsModal()">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 

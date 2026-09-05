@@ -9,6 +9,8 @@ if (!headers_sent()) {
 
 define('DEFAULT_API_TOKEN', '11af5c25470d1306970a9175df8a1213da7435960305169f');
 define('BASE_API_URL', 'http://117.217.126.149:880/roottech/index.php');
+define('DEFAULT_JOBS_URL', 'https://portal.carefirstglobal.com/api/third-party/jobs');
+define('DEFAULT_JOBS_TOKEN', 'K31WQXjuCTR5JVuYl84ghVeRHMIDbtrovwDWOO2opbuevCvw5P');
 
 $action = $_GET['action'] ?? '';
 
@@ -747,6 +749,54 @@ if ($action === 'all_agents_permissions') {
         'all_modules'     => $allModules,
         'default_modules' => $defaultModules,
     ]);
+    exit;
+}
+
+// 27. THIRD-PARTY JOBS (CAREFIRST GLOBAL)
+if ($action === 'jobs' || $action === 'third_party_jobs') {
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $token = $_GET['token'] ?? ($input['token'] ?? DEFAULT_JOBS_TOKEN);
+    $url   = $_GET['url'] ?? ($input['url'] ?? DEFAULT_JOBS_URL);
+
+    $payload = array_merge(['token' => $token], $input);
+    unset($payload['url']);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Accept: application/json',
+        'Authorization: Bearer ' . $token,
+    ]);
+
+    $res = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($err) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to connect to Third-Party Jobs API: ' . $err,
+            'data'    => [],
+            'count'   => 0,
+        ]);
+        exit;
+    }
+
+    $decoded = json_decode($res, true);
+    if (is_array($decoded)) {
+        echo json_encode($decoded);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Invalid JSON from Third-Party Jobs API',
+            'raw'     => $res,
+        ]);
+    }
     exit;
 }
 
